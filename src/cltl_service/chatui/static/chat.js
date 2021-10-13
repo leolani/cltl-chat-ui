@@ -1,7 +1,7 @@
 $(document).ready(function() {
     const poll_interval = 333;
 
-    let rest_path = window.location.pathname.split('/').slice(0, -2).join('/') + "/rest";
+    let rest_path = window.location.pathname.split('/').slice(0, -2).join('/');
 
     function makeid() {
         var result = "";
@@ -34,6 +34,7 @@ $(document).ready(function() {
     var poll = function () {
         $.get(rest_path + "/chat/" + client_id)
             .done(function (data) {
+                data = data.map(utt => utt.text)
                 chatWindow.talk({
                         talk: {
                             says: data,

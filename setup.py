@@ -10,7 +10,7 @@ setup(
     name='cltl.chat-ui',
     version=version,
     package_dir={'': 'src'},
-    packages=find_namespace_packages(include=['cltl.*'], where='src'),
+    packages=find_namespace_packages(include=['cltl.*', 'cltl_service.*'], where='src'),
     data_files=[('VERSION', ['VERSION'])],
     url="https://github.com/leolani/cltl-chat-ui",
     license='MIT License',
@@ -20,5 +20,5 @@ setup(
     long_description=long_description,
     long_description_content_type="text/markdown",
     python_requires='>=3.8',
-    install_requires=[],
+    install_requires=['emissor', 'cltl.combot', 'cltl.backend'],
 )
