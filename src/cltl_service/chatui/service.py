@@ -1,10 +1,11 @@
-import time
 import uuid
 
 import flask
+from emissor.representation.scenario import TextSignal
 from cltl.combot.infra.config import ConfigurationManager
 from cltl.combot.infra.event import Event, EventBus
 from cltl.combot.infra.resource import ResourceManager
+from cltl.combot.infra.time_util import timestamp_now
 from cltl.combot.infra.topic_worker import TopicWorker
 from cltl_service.backend.schema import TextSignalEvent
 from flask import Response
@@ -77,7 +78,7 @@ class ChatUiService:
             if flask.request.method == 'POST':
                 speaker = flask.request.args.get('speaker', default="UNKNOWN", type=str)
                 text = flask.request.get_data(as_text=True)
-                utterance = Utterance(chat_id, speaker, time.time(), text)
+                utterance = Utterance(chat_id, speaker, timestamp_now(), text)
                 self._chats.append(utterance)
                 payload = self._create_payload(utterance)
                 self._event_bus.publish(self._utterance_topic, Event.for_payload(payload))
@@ -99,10 +100,10 @@ class ChatUiService:
         return self._app
 
     def _create_payload(self, utterance: Utterance) -> TextSignalEvent:
-        signal_id = str(uuid.uuid4())
+        signal = TextSignal.for_scenario(None, utterance.timestamp, utterance.timestamp, None, utterance.text)
 
-        return TextSignalEvent.create(signal_id, utterance.timestamp, utterance.text)
+        return TextSignalEvent.create(signal)
 
     def _process(self, event: Event[TextSignalEvent]) -> None:
-        response = Utterance(self._chats.current_chat, self._agent, event.metadata.timestamp, event.payload.text)
+        response = Utterance(self._chats.current_chat, self._agent, event.metadata.timestamp, event.payload.signal.text)
         self._chats.append(response)
