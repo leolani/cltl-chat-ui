@@ -11,6 +11,10 @@ setup(
     version=version,
     package_dir={'': 'src'},
     packages=find_namespace_packages(include=['cltl.*', 'cltl_service.*'], where='src'),
+    package_data={
+        # setuptools doesn't expand /**/* globs (https://github.com/pypa/setuptools/issues/1806)
+        "cltl_service.chatui": ["static/*", "static/*/*", "static/*/*/*", "static/*/*/*/*", "static/*/*/*/*/*"]
+    },
     data_files=[('VERSION', ['VERSION'])],
     url="https://github.com/leolani/cltl-chat-ui",
     license='MIT License',

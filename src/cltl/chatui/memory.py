@@ -1,14 +1,16 @@
-from queue import Empty, Queue
+import logging
 from threading import Lock
 from typing import Iterable, Union
 
 from cltl.chatui.api import Chats, Utterance
 
+logger = logging.getLogger(__name__)
+
 
 class MemoryChats(Chats):
     def __init__(self):
+        self._utterances = set()
         self._chats = dict()
-        self._unread = dict()
         self._chat_id = None
         self._lock = Lock()
 
@@ -16,34 +18,25 @@ class MemoryChats(Chats):
         if isinstance(utterances, Utterance):
             utterances = [utterances]
 
-        try:
-            for utterance in utterances:
-                self._unread[utterance.chat_id].put(utterance)
+        with self._lock:
+            for utterance in filter(lambda u: u.id not in self._utterances, utterances):
+                if utterance.chat_id not in self._chats:
+                    self._chats[utterance.chat_id] = []
+
+                utterance.sequence = len(self._chats[utterance.chat_id])
+                self._chats[utterance.chat_id].append(utterance)
+                self._utterances.add(utterance.id)
                 self._chat_id = utterance.chat_id
-        except KeyError:
-            with self._lock:
-                if not utterance.chat_id in self._unread:
-                    self._unread[utterance.chat_id] = Queue()
-            self.append(utterance)
+                logger.debug("Added utterance %s [%s] to chat %s [%s]", utterance.id, utterance.text, utterance.chat_id, utterance.sequence)
 
-    def get_utterances(self, chat_id: str, unread_only: bool = False) -> Iterable[Utterance]:
-        if chat_id not in self._unread:
-            raise ValueError("No chat with id " + chat_id)
-        if chat_id not in self._chats:
-            self._chats[chat_id] = Queue()
+    def get_utterances(self, chat_id: str, from_sequence: int = 0) -> Iterable[Utterance]:
+        with self._lock:
+            if chat_id not in self._chats:
+                raise ValueError("No chat with id " + chat_id)
 
-        chat = self._unread[chat_id]
-        responses = []
-        while True:
-            try:
-                utterance = chat.get_nowait()
-                responses.append(utterance)
-                self._chats[chat_id].put(utterance)
-            except Empty:
-                break
-
-        return responses if unread_only else self._chats[chat_id].queue
+            return self._chats[chat_id][from_sequence:]
 
     @property
     def current_chat(self) -> str:
-        return self._chat_id
+        with self._lock:
+            return self._chat_id

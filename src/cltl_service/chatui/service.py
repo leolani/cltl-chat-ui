@@ -1,3 +1,4 @@
+import dataclasses
 import uuid
 
 import flask
@@ -21,17 +22,19 @@ class ChatUiService:
         config = config_manager.get_config("cltl.chat-ui")
         name = config.get("name")
         agent_id = config.get("agent_id")
+        external_input = config.get_boolean("external_input")
 
         config = config_manager.get_config("cltl.chat-ui.events")
         utterance_topic = config.get("topic_utterance")
         response_topic = config.get("topic_response")
 
-        return cls(name, agent_id, utterance_topic, response_topic, chats, event_bus, resource_manager)
+        return cls(name, agent_id, external_input, utterance_topic, response_topic, chats, event_bus, resource_manager)
 
-    def __init__(self, name: str, agent: str, utterance_topic: str, response_topic: str,
+    def __init__(self, name: str, agent: str, external_input: bool, utterance_topic: str, response_topic: str,
                  chats: Chats, event_bus: EventBus, resource_manager: ResourceManager):
         self._name = name
         self._agent = agent
+        self._external_input = external_input
 
         self._response_topic = response_topic
         self._utterance_topic = utterance_topic
@@ -44,7 +47,7 @@ class ChatUiService:
         self._topic_worker = None
 
     def start(self, timeout=30):
-        self._topic_worker = TopicWorker([self._response_topic], self._event_bus,
+        self._topic_worker = TopicWorker([self._utterance_topic, self._response_topic], self._event_bus,
                                          resource_manager=self._resource_manager, processor=self._process)
         self._topic_worker.start().wait()
 
@@ -63,27 +66,41 @@ class ChatUiService:
 
         self._app = flask.Flask(__name__)
 
+        @self._app.route('/chat/current', methods=['GET'])
+        def current_chat():
+            current_chat = self._chats.current_chat if self._chats.current_chat else str(uuid.uuid4())
+            return {"id": current_chat, "agent": self._agent}
+
         @self._app.route('/chat/<chat_id>', methods=['GET', 'POST'])
         def utterances(chat_id: str):
+            if not chat_id:
+                return Response("Missing chat id", status=400)
+
             if flask.request.method == 'GET':
-                all_utterances = flask.request.args.get('all', default=False, type=bool)
-                speaker = flask.request.args.get('speaker', default=self._agent, type=str)
-                try:
-                    chat = self._chats.get_utterances(chat_id, unread_only=not all_utterances)
-                    responses = [utterance for utterance in chat if not speaker or utterance.speaker == speaker]
-
-                    return jsonify(responses)
-                except ValueError:
-                    return Response(status=404)
+                return get_utterances(chat_id)
             if flask.request.method == 'POST':
-                speaker = flask.request.args.get('speaker', default="UNKNOWN", type=str)
-                text = flask.request.get_data(as_text=True)
-                utterance = Utterance(chat_id, speaker, timestamp_now(), text)
-                self._chats.append(utterance)
-                payload = self._create_payload(utterance)
-                self._event_bus.publish(self._utterance_topic, Event.for_payload(payload))
+                return post_utterances(chat_id)
 
-                return Response(status=200)
+        def get_utterances(chat_id: str):
+            from_sequence = flask.request.args.get('from', default=0, type=int)
+            speaker = flask.request.args.get('speaker', default=None if self._external_input else self._agent , type=str)
+            try:
+                utterances = self._chats.get_utterances(chat_id, from_sequence=from_sequence)
+                responses = [utterance for utterance in utterances if not speaker or utterance.speaker == speaker]
+
+                return jsonify(responses)
+            except ValueError:
+                return Response(status=404)
+
+        def post_utterances(chat_id: str):
+            speaker = flask.request.args.get('speaker', default="UNKNOWN", type=str)
+            text = flask.request.get_data(as_text=True)
+            utterance = Utterance.for_chat(chat_id, speaker, timestamp_now(), text)
+            self._chats.append(utterance)
+            payload = self._create_payload(utterance)
+            self._event_bus.publish(self._utterance_topic, Event.for_payload(payload))
+
+            return Response(utterance.id, status=200)
 
         @self._app.route('/urlmap')
         def url_map():
@@ -100,10 +117,21 @@ class ChatUiService:
         return self._app
 
     def _create_payload(self, utterance: Utterance) -> TextSignalEvent:
-        signal = TextSignal.for_scenario(None, utterance.timestamp, utterance.timestamp, None, utterance.text)
+        signal = TextSignal.for_scenario(None, utterance.timestamp, utterance.timestamp, None, utterance.text,
+                                         signal_id=utterance.id)
 
         return TextSignalEvent.create(signal)
 
     def _process(self, event: Event[TextSignalEvent]) -> None:
-        response = Utterance(self._chats.current_chat, self._agent, event.metadata.timestamp, event.payload.signal.text)
-        self._chats.append(response)
+        chat_id = self._chats.current_chat
+        chat_id = chat_id if chat_id else str(uuid.uuid4())
+
+        if event.metadata.topic == self._response_topic:
+            response = Utterance.for_chat(chat_id, self._agent, event.payload.signal.time.start,
+                                          event.payload.signal.text)
+            self._chats.append(response)
+        elif event.metadata.topic == self._utterance_topic:
+            # TODO resolve speaker
+            utterance = Utterance.for_chat(chat_id, "UNKNOWN", event.payload.signal.time.start,
+                                           event.payload.signal.text, id=event.payload.signal.id)
+            self._chats.append(utterance)
