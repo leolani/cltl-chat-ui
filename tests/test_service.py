@@ -5,7 +5,7 @@ from queue import Queue
 
 from cltl.combot.infra.event import Event
 from cltl.combot.infra.event.memory import SynchronousEventBus
-from cltl_service.backend.schema import TextSignalEvent
+from cltl.combot.event.emissor import TextSignalEvent
 
 from cltl.chatui.memory import MemoryChats
 from cltl_service.chatui.service import ChatUiService
