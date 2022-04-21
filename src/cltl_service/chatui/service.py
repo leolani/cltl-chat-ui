@@ -9,7 +9,7 @@ from cltl.combot.infra.event import Event, EventBus
 from cltl.combot.infra.resource import ResourceManager
 from cltl.combot.infra.time_util import timestamp_now
 from cltl.combot.infra.topic_worker import TopicWorker
-from cltl_service.backend.schema import TextSignalEvent
+from cltl.combot.event.emissor import TextSignalEvent
 from flask import Response
 from flask import jsonify
 
