@@ -2,6 +2,7 @@ import dataclasses
 import uuid
 
 import flask
+from cltl_service.emissordata.client import EmissorDataClient
 from emissor.representation.scenario import TextSignal
 from cltl.combot.infra.config import ConfigurationManager
 from cltl.combot.infra.event import Event, EventBus
@@ -17,7 +18,7 @@ from cltl.chatui.api import Chats, Utterance
 
 class ChatUiService:
     @classmethod
-    def from_config(cls, chats: Chats,
+    def from_config(cls, chats: Chats, emissor_data: EmissorDataClient,
                     event_bus: EventBus, resource_manager: ResourceManager, config_manager: ConfigurationManager):
         config = config_manager.get_config("cltl.chat-ui")
         name = config.get("name")
@@ -28,10 +29,10 @@ class ChatUiService:
         utterance_topic = config.get("topic_utterance")
         response_topic = config.get("topic_response")
 
-        return cls(name, agent_id, external_input, utterance_topic, response_topic, chats, event_bus, resource_manager)
+        return cls(name, agent_id, external_input, utterance_topic, response_topic, chats, emissor_data, event_bus, resource_manager)
 
     def __init__(self, name: str, agent: str, external_input: bool, utterance_topic: str, response_topic: str,
-                 chats: Chats, event_bus: EventBus, resource_manager: ResourceManager):
+                 chats: Chats, emissor_data: EmissorDataClient, event_bus: EventBus, resource_manager: ResourceManager):
         self._name = name
         self._agent = agent
         self._external_input = external_input
@@ -40,6 +41,7 @@ class ChatUiService:
         self._utterance_topic = utterance_topic
         self._chats = chats
 
+        self._emissor_data = emissor_data
         self._event_bus = event_bus
         self._resource_manager = resource_manager
 
@@ -118,7 +120,8 @@ class ChatUiService:
         return self._app
 
     def _create_payload(self, utterance: Utterance) -> TextSignalEvent:
-        signal = TextSignal.for_scenario(None, utterance.timestamp, utterance.timestamp, None, utterance.text,
+        scenario_id = self._emissor_data.get_current_scenario_id()
+        signal = TextSignal.for_scenario(scenario_id, utterance.timestamp, utterance.timestamp, None, utterance.text,
                                          signal_id=utterance.id)
 
         return TextSignalEvent.create(signal)

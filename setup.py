@@ -28,6 +28,7 @@ setup(
     extras_require={
         "impl": [],
         "service": [
+            "cltl.emissor-data[client]",
             "emissor",
             "flask"
         ]}
