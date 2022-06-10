@@ -96,7 +96,7 @@ class ChatUiService:
                 return Response(status=404)
 
         def post_utterances(chat_id: str):
-            speaker = flask.request.args.get('speaker', default="UNKNOWN", type=str)
+            speaker = flask.request.args.get('speaker', default=None, type=str)
             text = flask.request.get_data(as_text=True)
             utterance = Utterance.for_chat(chat_id, speaker, timestamp_now(), text)
             self._chats.append(utterance)
@@ -124,7 +124,7 @@ class ChatUiService:
         signal = TextSignal.for_scenario(scenario_id, utterance.timestamp, utterance.timestamp, None, utterance.text,
                                          signal_id=utterance.id)
 
-        return TextSignalEvent.create(signal)
+        return TextSignalEvent.for_speaker(signal)
 
     def _process(self, event: Event[TextSignalEvent]) -> None:
         chat_id = self._chats.current_chat

@@ -22,8 +22,9 @@ class ChatUITest(unittest.TestCase):
     def test_service_all_utterances(self):
         event_bus = SynchronousEventBus()
         chats = MemoryChats()
+        # TODO
         self.service = ChatUiService("testUI", "testAgent", "utteranceTopic", "responseTopic",
-                                     chats, event_bus, None)
+                                     chats, None, event_bus, None)
         self.service.start()
 
         event_received = threading.Event()
@@ -47,7 +48,7 @@ class ChatUITest(unittest.TestCase):
         self.assertEqual("TextSignalEvent", event.payload.type)
         self.assertEqual("bla bla bla", event.payload.text)
 
-        response_payload = TextSignalEvent.create("signal_id", 1, "response text")
+        response_payload = TextSignalEvent.for_agent("signal_id", 1, "response text")
         event_bus.publish("responseTopic", Event.for_payload(response_payload))
 
         for _ in range(100):
@@ -66,6 +67,7 @@ class ChatUITest(unittest.TestCase):
     def test_service_responses_only(self):
         event_bus = SynchronousEventBus()
         chats = MemoryChats()
+        # TODO
         self.service = ChatUiService("testUI", "testAgent", "utteranceTopic", "responseTopic",
                                      chats, event_bus, None)
         self.service.start()
@@ -91,7 +93,7 @@ class ChatUITest(unittest.TestCase):
         self.assertEqual("TextSignalEvent", event.payload.type)
         self.assertEqual("bla bla bla", event.payload.text)
 
-        response_payload = TextSignalEvent.create("signal_id", 1, "response text")
+        response_payload = TextSignalEvent.for_agent("signal_id", 1, "response text")
         event_bus.publish("responseTopic", Event.for_payload(response_payload))
 
         for _ in range(100):
@@ -108,6 +110,7 @@ class ChatUITest(unittest.TestCase):
     def test_service_serves_static_files(self):
         event_bus = SynchronousEventBus()
         chats = MemoryChats()
+        # TODO
         self.service = ChatUiService("testUI", "testAgent", "utteranceTopic", "responseTopic",
                                      chats, event_bus, None)
         self.service.start()
