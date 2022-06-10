@@ -24,11 +24,10 @@ setup(
     long_description=long_description,
     long_description_content_type="text/markdown",
     python_requires='>=3.8',
-    install_requires=['emissor', 'cltl.combot', 'cltl.backend'],
+    install_requires=['emissor', 'cltl.combot'],
     extras_require={
         "impl": [],
         "service": [
-            "cltl.emissor-data[client]",
             "emissor",
             "flask"
         ]}

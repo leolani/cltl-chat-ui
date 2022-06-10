@@ -1,7 +1,7 @@
 SHELL = /bin/bash
 
 
-project_dependencies ?= $(addprefix $(project_root)/, emissor cltl-combot cltl-emissor-data)
+project_dependencies ?= $(addprefix $(project_root)/, emissor cltl-combot)
 
 git_remote ?= https://github.com/leolani
 
