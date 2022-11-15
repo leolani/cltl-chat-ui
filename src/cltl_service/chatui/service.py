@@ -78,7 +78,7 @@ class ChatUiService:
         @self._app.route('/chat/current', methods=['GET'])
         def current_chat():
             current_chat = self._chats.current_chat if self._chats.current_chat else str(uuid.uuid4())
-            agent_name = self._agent.name if self._agent and self._agent.name else "Self"
+            agent_name = self._agent.name if self._agent and self._agent.name else "Leolani"
             return {"id": current_chat, "agent": agent_name}
 
         @self._app.route('/chat/<chat_id>', methods=['GET', 'POST'])
@@ -93,7 +93,7 @@ class ChatUiService:
 
         def get_utterances(chat_id: str):
             from_sequence = flask.request.args.get('from', default=0, type=int)
-            agent_name = self._agent.name if self._agent and self._agent.name else "Self"
+            agent_name = self._agent.name if self._agent and self._agent.name else "Leolani"
             speaker = flask.request.args.get('speaker', default=None if self._external_input else agent_name, type=str)
             try:
                 utterances = self._chats.get_utterances(chat_id, from_sequence=from_sequence)
@@ -158,7 +158,7 @@ class ChatUiService:
         chat_id = chat_id if chat_id else str(uuid.uuid4())
 
         if event.metadata.topic == self._response_topic:
-            agent_name = self._agent.name if self._agent and self._agent.name else "Self"
+            agent_name = self._agent.name if self._agent and self._agent.name else "Leolani"
             response = Utterance.for_chat(chat_id, agent_name, event.payload.signal.time.start,
                                           event.payload.signal.text)
             self._chats.append(response)
