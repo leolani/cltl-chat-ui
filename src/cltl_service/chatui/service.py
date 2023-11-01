@@ -1,5 +1,4 @@
 import logging
-import logging
 import uuid
 
 import flask
@@ -27,18 +26,18 @@ class ChatUiService:
 
         config = config_manager.get_config("cltl.chat-ui.events")
         utterance_topic = config.get("topic_utterance")
-        response_topic = config.get("topic_response")
+        response_topics = config.get("topic_response", multi=True)
         scenario_topic = config.get("topic_scenario")
 
-        return cls(name, external_input, utterance_topic, response_topic, scenario_topic, chats,
+        return cls(name, external_input, utterance_topic, response_topics, scenario_topic, chats,
                    event_bus, resource_manager)
 
-    def __init__(self, name: str, external_input: bool, utterance_topic: str, response_topic: str, scenario_topic: str,
+    def __init__(self, name: str, external_input: bool, utterance_topic: str, response_topics: str, scenario_topic: str,
                  chats: Chats, event_bus: EventBus, resource_manager: ResourceManager):
         self._name = name
         self._external_input = external_input
 
-        self._response_topic = response_topic
+        self._response_topics = response_topics
         self._utterance_topic = utterance_topic
         self._scenario_topic = scenario_topic
         self._chats = chats
@@ -54,7 +53,7 @@ class ChatUiService:
         self._topic_worker = None
 
     def start(self, timeout=30):
-        self._topic_worker = TopicWorker([self._utterance_topic, self._response_topic, self._scenario_topic],
+        self._topic_worker = TopicWorker([self._utterance_topic, self._scenario_topic] + self._response_topics,
                                          self._event_bus, resource_manager=self._resource_manager,
                                          processor=self._process, buffer_size=256,
                                          name=self.__class__.__name__)
@@ -157,7 +156,7 @@ class ChatUiService:
         chat_id = self._chats.current_chat
         chat_id = chat_id if chat_id else str(uuid.uuid4())
 
-        if event.metadata.topic == self._response_topic:
+        if event.metadata.topic in self._response_topics:
             agent_name = self._agent.name if self._agent and self._agent.name else "Leolani"
             response = Utterance.for_chat(chat_id, agent_name, event.payload.signal.time.start,
                                           event.payload.signal.text)
