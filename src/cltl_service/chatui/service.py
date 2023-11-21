@@ -1,7 +1,8 @@
 import logging
-import uuid
 
 import flask
+import math
+from cltl.combot.event.bdi import DesireEvent
 from cltl.combot.event.emissor import TextSignalEvent, ScenarioStopped
 from cltl.combot.infra.config import ConfigurationManager
 from cltl.combot.infra.event import Event, EventBus
@@ -10,11 +11,14 @@ from cltl.combot.infra.time_util import timestamp_now
 from cltl.combot.infra.topic_worker import TopicWorker
 from emissor.representation.scenario import TextSignal
 from flask import Response
-from flask import jsonify
+from flask import jsonify, request, make_response
 
 from cltl.chatui.api import Chats, Utterance
 
 logger = logging.getLogger(__name__)
+
+_SPEAKER_COOKIE = "cltl.chatui.chatid"
+
 
 class ChatUiService:
     @classmethod
@@ -23,22 +27,26 @@ class ChatUiService:
         config = config_manager.get_config("cltl.chat-ui")
         name = config.get("name")
         external_input = config.get_boolean("external_input")
+        timeout = config.get_int("timeout")
 
         config = config_manager.get_config("cltl.chat-ui.events")
         utterance_topic = config.get("topic_utterance")
         response_topics = config.get("topic_response", multi=True)
         scenario_topic = config.get("topic_scenario")
+        desire_topic = config.get("topic_desire")
 
-        return cls(name, external_input, utterance_topic, response_topics, scenario_topic, chats,
-                   event_bus, resource_manager)
+        return cls(name, external_input, utterance_topic, response_topics, scenario_topic, desire_topic,
+                   timeout, chats, event_bus, resource_manager)
 
-    def __init__(self, name: str, external_input: bool, utterance_topic: str, response_topics: str, scenario_topic: str,
+    def __init__(self, name: str, external_input: bool, utterance_topic: str, response_topics: str,
+                 scenario_topic: str, desire_topic: str, timeout: int,
                  chats: Chats, event_bus: EventBus, resource_manager: ResourceManager):
         self._name = name
         self._external_input = external_input
 
         self._response_topics = response_topics
         self._utterance_topic = utterance_topic
+        self._desire_topic = desire_topic
         self._scenario_topic = scenario_topic
         self._chats = chats
 
@@ -51,6 +59,8 @@ class ChatUiService:
 
         self._app = None
         self._topic_worker = None
+
+        self._timeout = timeout * 60000
 
     def start(self, timeout=30):
         self._topic_worker = TopicWorker([self._utterance_topic, self._scenario_topic] + self._response_topics,
@@ -76,14 +86,52 @@ class ChatUiService:
 
         @self._app.route('/chat/current', methods=['GET'])
         def current_chat():
-            current_chat = self._chats.current_chat if self._chats.current_chat else str(uuid.uuid4())
-            agent_name = self._agent.name if self._agent and self._agent.name else "Leolani"
-            return {"id": current_chat, "agent": agent_name}
+            status, chat_id, remain_until_timeout = handle_ccookie(request.cookies.get(_SPEAKER_COOKIE))
+
+            if remain_until_timeout < 0:
+                logger.debug("Chat %s timed out in UI", self._chats.current_chat(False)[0])
+                self._event_bus.publish(self._desire_topic, Event.for_payload(DesireEvent(['quit'])))
+
+            if status == 200:
+                agent_name = self._agent.name if self._agent and self._agent.name else "Leolani"
+                payload = {"id": chat_id, "agent": agent_name}
+            else:
+                payload = math.ceil(remain_until_timeout)
+
+            response = make_response(jsonify(payload), status)
+            if chat_id:
+                response.set_cookie(_SPEAKER_COOKIE, chat_id, samesite='Lax')
+            else:
+                response.delete_cookie(_SPEAKER_COOKIE)
+
+            return response
+
+        def handle_ccookie(expected):
+            chat_id, is_new, last_modified = self._chats.current_chat(True, True)
+            if is_new:
+                logger.debug("Started new chat by speaker: %s", chat_id)
+                return 200, chat_id, self._timeout
+
+            if last_modified is None:
+                logger.debug("Accepted new cookie: %s", chat_id)
+                return 200, chat_id, self._timeout
+
+            remain_until_timeout = (self._timeout - timestamp_now() + last_modified) / 60000
+            if expected == chat_id and remain_until_timeout > 0:
+                logger.debug("Accepted cookie %s", expected)
+                return 200, chat_id, remain_until_timeout
+
+            logger.debug("Rejected cookie %s for chat %s", expected, chat_id)
+            return 307, None, remain_until_timeout
 
         @self._app.route('/chat/<chat_id>', methods=['GET', 'POST'])
         def utterances(chat_id: str):
             if not chat_id:
                 return Response("Missing chat id", status=400)
+
+            current_chat, _, _ = self._chats.current_chat(False)
+            if chat_id != current_chat:
+                return Response("Chat unavailable", status=404)
 
             if flask.request.method == 'GET':
                 return get_utterances(chat_id)
@@ -135,34 +183,37 @@ class ChatUiService:
 
         return TextSignalEvent.for_speaker(signal)
 
-    def _process(self, event: Event[TextSignalEvent]) -> None:
+    def _process(self, event: Event) -> None:
         if event.metadata.topic == self._scenario_topic:
-            self._scenario_id = event.payload.scenario.id
-            if event.payload.scenario.context and event.payload.scenario.context.agent:
-                self._agent = event.payload.scenario.context.agent
-            if event.payload.scenario.context and event.payload.scenario.context.speaker:
-                self._speaker = event.payload.scenario.context.speaker
-
-            if event.payload.type == ScenarioStopped.__name__:
-                self._scenario_id = None
-                self._agent = None
-                self._speaker = None
-
-            logger.info("Updated Chat UI for scenario %s with agent %s, speaker %s",
-                          self._scenario_id, self._agent, self._speaker)
-
+            self._process_scenario_event(event)
             return
 
-        chat_id = self._chats.current_chat
-        chat_id = chat_id if chat_id else str(uuid.uuid4())
+        chat_id, is_new, last_modified = self._chats.current_chat(True)
+        if is_new:
+            logger.debug("Started new chat by agent: %s", chat_id)
 
         if event.metadata.topic in self._response_topics:
             agent_name = self._agent.name if self._agent and self._agent.name else "Leolani"
             response = Utterance.for_chat(chat_id, agent_name, event.payload.signal.time.start,
                                           event.payload.signal.text)
-            self._chats.append(response)
+            self._chats.append(response, modify_timestamp=False)
         elif event.metadata.topic == self._utterance_topic:
             speaker_name = self._speaker.name if self._speaker and self._speaker.name else "Stranger"
             utterance = Utterance.for_chat(chat_id, speaker_name, event.payload.signal.time.start,
                                            event.payload.signal.text, id=event.payload.signal.id)
             self._chats.append(utterance)
+
+    def _process_scenario_event(self, event):
+        self._scenario_id = event.payload.scenario.id
+        if event.payload.scenario.context and event.payload.scenario.context.agent:
+            self._agent = event.payload.scenario.context.agent
+        if event.payload.scenario.context and event.payload.scenario.context.speaker:
+            self._speaker = event.payload.scenario.context.speaker
+        if event.payload.type == ScenarioStopped.__name__:
+            self._scenario_id = None
+            self._agent = None
+            self._speaker = None
+            self._chats.stop_chat()
+
+        logger.info("Updated Chat UI for scenario %s with agent %s, speaker %s",
+                    self._scenario_id, self._agent, self._speaker)

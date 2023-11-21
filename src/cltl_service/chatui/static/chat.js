@@ -29,7 +29,15 @@ $(document).ready(function() {
                 chatId = data.id;
                 agentId = data.agent;
                 console.log("Retrieved chat ID:", chatId, agentId);
-        });
+            }).fail(jqXHR => {
+                if (jqXHR.status === 307) {
+                    alert("Currently there is another chat in progress, try again in " + jqXHR.responseText + " minutes.");
+                } else {
+                    console.log("Retrieved unhandled status: " + jqXHR.status);
+                }
+            });
+        console.log("Initialized chat for", chatId, agentId, "start polling");
+        setTimeout(poll, pollInterval + (animationTime || 100));
     };
 
     let talk = function(utterances) {
@@ -94,8 +102,20 @@ $(document).ready(function() {
     };
 
     let poll = function () {
+        if (!chatId) {
+            setTimeout(poll, pollInterval + (animationTime || 0));
+            return;
+        }
+
         $.get(restPath + "/chat/" + chatId + "?from=" + (chatSequence  + 1))
-            .then(talk, () => setTimeout(poll, pollInterval + (animationTime || 0)));
+            .done(talk)
+            .fail(jqXHR => {
+                if (jqXHR.status === 404) {
+                    console.log("Terminated chat");
+                } else {
+                    setTimeout(poll, pollInterval + (animationTime || 0));
+                }
+            });
     }
 
     let initialConvo = {
@@ -103,7 +123,6 @@ $(document).ready(function() {
         silence: {says: [], reply: []}
     };
 
-    initChat()
+    initChat();
     chatWindow.talk(initialConvo);
-    poll();
 });
