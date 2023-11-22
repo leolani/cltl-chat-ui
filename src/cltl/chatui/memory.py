@@ -56,7 +56,7 @@ class MemoryChats(Chats):
                 self._chat_id = str(uuid.uuid4())
                 self._chats[self._chat_id] = []
 
-            if modify_timestamp:
+            if self._chat_id and modify_timestamp:
                 self._last_modified = max(self._last_modified if self._last_modified else 0, timestamp_now())
 
             return self._chat_id, is_new, last_modified

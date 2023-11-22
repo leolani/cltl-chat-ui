@@ -60,7 +60,8 @@ class ChatUiService:
         self._app = None
         self._topic_worker = None
 
-        self._timeout = timeout * 60000
+        self._timeout = timeout * 60000 if timeout > 0 else 0
+        self._use_cookie = timeout > 0
 
     def start(self, timeout=30):
         self._topic_worker = TopicWorker([self._utterance_topic, self._scenario_topic] + self._response_topics,
@@ -84,9 +85,23 @@ class ChatUiService:
 
         self._app = flask.Flask(__name__)
 
+        @self._app.route('/chat/terminate', methods=['DELETE'])
+        def terminate_chat():
+            if self._use_cookie:
+                chat_id, is_new, last_modified = self._chats.current_chat(False, False)
+                self._event_bus.publish(self._desire_topic, Event.for_payload(DesireEvent(['quit'])))
+                logger.warning("Chat %s (%s) terminated through endpoint /chat/terminate", chat_id, last_modified)
+                return Response(status=200)
+            else:
+                logger.warning("No-op on /chat/terminate")
+                return Response(status=404)
+
         @self._app.route('/chat/current', methods=['GET'])
         def current_chat():
-            status, chat_id, remain_until_timeout = handle_ccookie(request.cookies.get(_SPEAKER_COOKIE))
+            if self._use_cookie:
+                status, chat_id, remain_until_timeout = handle_ccookie(request.cookies.get(_SPEAKER_COOKIE))
+            else:
+                status, chat_id, remain_until_timeout = 200, self._chats.current_chat(True, True), self._timeout
 
             if remain_until_timeout < 0:
                 logger.debug("Chat %s timed out in UI", self._chats.current_chat(False)[0])
@@ -99,30 +114,43 @@ class ChatUiService:
                 payload = math.ceil(remain_until_timeout)
 
             response = make_response(jsonify(payload), status)
-            if chat_id:
+            if chat_id and self._use_cookie:
                 response.set_cookie(_SPEAKER_COOKIE, chat_id, samesite='Lax')
-            else:
+            elif self._use_cookie:
                 response.delete_cookie(_SPEAKER_COOKIE)
 
             return response
 
         def handle_ccookie(expected):
-            chat_id, is_new, last_modified = self._chats.current_chat(True, True)
+            remain_until_timeout = self._timeout
+            status = None
+
+            chat_id, is_new, last_modified = self._chats.current_chat(True, False)
             if is_new:
+                # Chat is created by speaker
                 logger.debug("Started new chat by speaker: %s", chat_id)
-                return 200, chat_id, self._timeout
-
-            if last_modified is None:
+                status = 200
+            elif last_modified is None:
+                # Chat was created by agent, but no speaker connected yet
                 logger.debug("Accepted new cookie: %s", chat_id)
-                return 200, chat_id, self._timeout
+                status = 200
+            else:
+                remain_until_timeout = (self._timeout - timestamp_now() + last_modified) / 60000
+                if expected == chat_id and remain_until_timeout > 0:
+                    # speaker reconnected within timeout
+                    logger.debug("Accepted cookie %s", expected)
+                    status = 200
+                else:
+                    # other user or speaker reconnected after timeout
+                    logger.debug("Rejected cookie %s for chat %s", expected, chat_id)
+                    status = 307
+                    chat_id = None
 
-            remain_until_timeout = (self._timeout - timestamp_now() + last_modified) / 60000
-            if expected == chat_id and remain_until_timeout > 0:
-                logger.debug("Accepted cookie %s", expected)
-                return 200, chat_id, remain_until_timeout
+            if status == 200:
+                # Reset timeout if cookie is accepted
+                self._chats.current_chat(False, True)
 
-            logger.debug("Rejected cookie %s for chat %s", expected, chat_id)
-            return 307, None, remain_until_timeout
+            return status, chat_id, remain_until_timeout
 
         @self._app.route('/chat/<chat_id>', methods=['GET', 'POST'])
         def utterances(chat_id: str):
