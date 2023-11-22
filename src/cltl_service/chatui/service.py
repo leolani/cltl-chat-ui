@@ -101,7 +101,8 @@ class ChatUiService:
             if self._use_cookie:
                 status, chat_id, remain_until_timeout = handle_ccookie(request.cookies.get(_SPEAKER_COOKIE))
             else:
-                status, chat_id, remain_until_timeout = 200, self._chats.current_chat(True, True), self._timeout
+                id_, _, _ = self._chats.current_chat(True, True)
+                status, chat_id, remain_until_timeout = 200, id_, self._timeout
 
             if remain_until_timeout < 0:
                 logger.debug("Chat %s timed out in UI", self._chats.current_chat(False)[0])
@@ -155,10 +156,12 @@ class ChatUiService:
         @self._app.route('/chat/<chat_id>', methods=['GET', 'POST'])
         def utterances(chat_id: str):
             if not chat_id:
+                logger.debug("Request with missing chat id")
                 return Response("Missing chat id", status=400)
 
             current_chat, _, _ = self._chats.current_chat(False)
             if chat_id != current_chat:
+                logger.debug("Request with wrong chat id: %s, current: %s", chat_id, current_chat)
                 return Response("Chat unavailable", status=404)
 
             if flask.request.method == 'GET':
