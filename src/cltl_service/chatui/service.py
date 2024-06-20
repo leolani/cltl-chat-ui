@@ -33,7 +33,7 @@ class ChatUiService:
         utterance_topic = config.get("topic_utterance")
         response_topics = config.get("topic_response", multi=True)
         scenario_topic = config.get("topic_scenario")
-        desire_topic = config.get("topic_desire")
+        desire_topic = config.get("topic_desire") if "topic_desire" in config else None
 
         return cls(name, external_input, utterance_topic, response_topics, scenario_topic, desire_topic,
                    timeout, chats, event_bus, resource_manager)
@@ -87,7 +87,7 @@ class ChatUiService:
 
         @self._app.route('/chat/terminate', methods=['DELETE'])
         def terminate_chat():
-            if self._use_cookie:
+            if self._use_cookie and self._desire_topic:
                 chat_id, is_new, last_modified = self._chats.current_chat(False, False)
                 self._event_bus.publish(self._desire_topic, Event.for_payload(DesireEvent(['quit'])))
                 logger.warning("Chat %s (%s) terminated through endpoint /chat/terminate", chat_id, last_modified)
@@ -104,7 +104,7 @@ class ChatUiService:
                 id_, _, _ = self._chats.current_chat(True, True)
                 status, chat_id, remain_until_timeout = 200, id_, self._timeout
 
-            if remain_until_timeout < 0:
+            if remain_until_timeout < 0 and self._desire_topic:
                 logger.debug("Chat %s timed out in UI", self._chats.current_chat(False)[0])
                 self._event_bus.publish(self._desire_topic, Event.for_payload(DesireEvent(['quit'])))
 
