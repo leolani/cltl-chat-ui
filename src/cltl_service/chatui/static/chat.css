@@ -1,3 +1,23 @@
+html, body {
+    height: 100%;
+}
+
+body {
+    background-color: lightblue;
+}
+
 .bubble {
-   pointer-events: none;
+    pointer-events: none;
+}
+
+.spacer {
+    height: 5%;
+}
+
+.bubble-container {
+    height: 90%;
+}
+
+.bubble-container .input-wrap textarea:disabled {
+    background: lightgrey;
 }

@@ -1,5 +1,6 @@
 import logging
 import logging
+import re
 import uuid
 
 import flask
@@ -160,10 +161,15 @@ class ChatUiService:
         if event.metadata.topic == self._response_topic:
             agent_name = self._agent.name if self._agent and self._agent.name else "Leolani"
             response = Utterance.for_chat(chat_id, agent_name, event.payload.signal.time.start,
-                                          event.payload.signal.text)
+                                          self._sanitize(event.payload.signal.text))
             self._chats.append(response)
         elif event.metadata.topic == self._utterance_topic:
             speaker_name = self._speaker.name if self._speaker and self._speaker.name else "Stranger"
             utterance = Utterance.for_chat(chat_id, speaker_name, event.payload.signal.time.start,
-                                           event.payload.signal.text, id=event.payload.signal.id)
+                                           self._sanitize(event.payload.signal.text), id=event.payload.signal.id)
             self._chats.append(utterance)
+
+    def _sanitize(self, text):
+        sanitized = re.sub(r'<[^>]*>|\\[^\\]*\\', '', text)
+        sanitized = re.sub(r' +', ' ', sanitized)
+        return sanitized.strip()

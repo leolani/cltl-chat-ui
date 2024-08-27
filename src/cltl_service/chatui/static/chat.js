@@ -18,6 +18,7 @@ $(document).ready(function() {
                 let input = chatObject.input;
                 $.post(restPath + "/chat/" + chatId, input)
                     .done(utteranceId => utteranceIds.add(utteranceId));
+                $(".bubble-container .input-wrap textarea").attr("disabled", true);
             },
             animationTime: animationTime
         }
@@ -49,8 +50,11 @@ $(document).ready(function() {
             convos = turns.map(toConversationObjects);
 
             convos.forEach((convo, i) =>
-                setTimeout(() =>
-                    chatWindow.talk(convo, Object.keys(convo)[0]), i * 500));
+                setTimeout(() => {
+                    chatWindow.talk(convo, Object.keys(convo)[0]);
+                    $(".bubble-container .input-wrap textarea").attr("disabled", false);
+                    $(".bubble-container .input-wrap textarea").focus();
+                }, i * 500));
         } finally {
             let timeout = ((convos && convos.length) || 0) * 500 + pollInterval + (animationTime || 0);
             setTimeout(poll, timeout);
@@ -81,8 +85,8 @@ $(document).ready(function() {
         // The Chat UI accepts blocks of agent utterances - user utterances.
         // Agent utterances are submitted as text array in 'says'
         // User utterances are submitted as question-answer replies
-        let agent = currentTurn.agent.map(utt => `${utt.speaker}> ${utt.text}`);
-        let other = currentTurn.other.map(utt => `${utt.speaker}> ${utt.text}`).join(" |");
+        let agent = currentTurn.agent.map(utt => `${utt.text}`);
+        let other = currentTurn.other.map(utt => `${utt.text}`).join(" |");
 
         convo = {}
         convo[turn] = {
