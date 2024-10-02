@@ -15,10 +15,15 @@ $(document).ready(function() {
         {
             inputCallbackFn: function (chatObject) {
                 turn += 1;
+
                 let input = chatObject.input;
                 $.post(restPath + "/chat/" + chatId, input)
                     .done(utteranceId => utteranceIds.add(utteranceId));
-                $(".bubble-container .input-wrap textarea").attr("disabled", true);
+
+                if (input.trim()) {
+                    // Only disable non-empty as there won't be a response if the utterance is empty
+                    $(".bubble-container .input-wrap textarea").attr("disabled", true);
+                }
             },
             animationTime: animationTime
         }
