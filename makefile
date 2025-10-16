@@ -17,12 +17,3 @@ include util/make/makefile.component.mk
 
 clean: py-clean
 	rm -rf src/cltl_service/chatui/static/chat-bubble
-
-build: src/cltl_service/chatui/static/chat-bubble py-install
-
-src/cltl_service/chatui/static/chat-bubble:
-	$(info Download $(chat_bubble))
-	@mkdir src/cltl_service/chatui/static/chat-bubble
-	@wget -qO- $(chat_bubble) | \
-	        tar -xvzf - -C src/cltl_service/chatui/static/chat-bubble --strip-components 1 \
-	                chat-bubble-$(chat_bubble_version)/component
