@@ -5,9 +5,6 @@ project_dependencies ?= $(addprefix $(project_root)/, emissor cltl-combot)
 
 git_remote ?= https://github.com/leolani
 
-chat_bubble_version = 1.5.0
-chat_bubble = https://github.com/dmitrizzle/chat-bubble/archive/refs/tags/v$(chat_bubble_version).tar.gz
-
 
 include util/make/makefile.base.mk
 include util/make/makefile.py.base.mk

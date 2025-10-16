@@ -18,11 +18,11 @@ import shutil
 # --------- chat-bubble fetch ---------
 ROOT = pathlib.Path(__file__).parent.resolve()
 
-CHAT_BUBBLE_VERSION = os.environ.get("CHAT_BUBBLE_VERSION", "1.5.0")
+CHAT_BUBBLE_VERSION = "1.5.0"
 CHAT_BUBBLE_URL = f"https://github.com/dmitrizzle/chat-bubble/archive/refs/tags/v{CHAT_BUBBLE_VERSION}.tar.gz"
 
 # Where to place the extracted assets
-TARGET_DIR = ROOT / "src" / "cltl_service" / "chatui" / "static" / "chat-bubble"
+TARGET_DIR = ROOT / "src" / "cltl_service" / "chatui" / "static" / "chat-bubble" / "component"
 # Subtree inside the tar (strip this prefix)
 TAR_PREFIX = f"chat-bubble-{CHAT_BUBBLE_VERSION}/component"
 
