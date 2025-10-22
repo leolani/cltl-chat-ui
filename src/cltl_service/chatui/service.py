@@ -1,18 +1,15 @@
 import logging
-import uuid
-from datetime import datetime
 
 import flask
 import math
-import requests
 from cltl.combot.event.bdi import DesireEvent
-from cltl.combot.event.emissor import TextSignalEvent, ScenarioStopped, ScenarioStarted, LeolaniContext, Agent
+from cltl.combot.event.emissor import TextSignalEvent, ScenarioStopped
 from cltl.combot.infra.config import ConfigurationManager
 from cltl.combot.infra.event import Event, EventBus
 from cltl.combot.infra.resource import ResourceManager
 from cltl.combot.infra.time_util import timestamp_now
 from cltl.combot.infra.topic_worker import TopicWorker
-from emissor.representation.scenario import TextSignal, Modality, Scenario
+from emissor.representation.scenario import TextSignal
 from flask import Response
 from flask import jsonify, request, make_response
 
@@ -21,9 +18,6 @@ from cltl.chatui.api import Chats, Utterance
 logger = logging.getLogger(__name__)
 
 _SPEAKER_COOKIE = "cltl.chatui.chatid"
-
-AGENT = Agent("Leolani", "http://cltl.nl/leolani/world/leolani")
-SPEAKER = Agent("Human", "http://cltl.nl/leolani/world/human_speaker")
 
 
 class ChatUiService:
@@ -56,9 +50,9 @@ class ChatUiService:
         self._scenario_topic = scenario_topic
         self._chats = chats
 
-        self._chat_scenarios = {}  # chat_id -> scenario_id
-        self._agent = AGENT
-        self._speaker = SPEAKER
+        self._scenario_id = None
+        self._agent = None
+        self._speaker = None
 
         self._event_bus = event_bus
         self._resource_manager = resource_manager
@@ -70,7 +64,7 @@ class ChatUiService:
         self._use_cookie = timeout > 0
 
     def start(self, timeout=30):
-        self._topic_worker = TopicWorker([self._utterance_topic] + self._response_topics,
+        self._topic_worker = TopicWorker([self._utterance_topic, self._scenario_topic] + self._response_topics,
                                          self._event_bus, resource_manager=self._resource_manager,
                                          processor=self._process, buffer_size=256,
                                          name=self.__class__.__name__)
@@ -96,7 +90,6 @@ class ChatUiService:
             if self._use_cookie and self._desire_topic:
                 chat_id, is_new, last_modified = self._chats.current_chat(False, False)
                 self._event_bus.publish(self._desire_topic, Event.for_payload(DesireEvent(['quit'])))
-                self._stop_scenario_for_chat(chat_id)
                 logger.warning("Chat %s (%s) terminated through endpoint /chat/terminate", chat_id, last_modified)
                 return Response(status=200)
             else:
@@ -112,9 +105,8 @@ class ChatUiService:
                 status, chat_id, remain_until_timeout = 200, id_, self._timeout
 
             if remain_until_timeout < 0 and self._desire_topic:
-                logger.debug("Chat %s timed out in UI", chat_id)
+                logger.debug("Chat %s timed out in UI", self._chats.current_chat(False)[0])
                 self._event_bus.publish(self._desire_topic, Event.for_payload(DesireEvent(['quit'])))
-                self._stop_scenario_for_chat(chat_id)
 
             if status == 200:
                 agent_name = self._agent.name if self._agent and self._agent.name else "Leolani"
@@ -195,9 +187,7 @@ class ChatUiService:
             utterance = Utterance.for_chat(chat_id, speaker, timestamp_now(), text)
             self._chats.append(utterance)
             payload = self._create_payload(utterance)
-            scenario_id = self._chat_scenarios.get(chat_id)
-            event = Event.for_payload(payload).with_scenario(scenario_id) if scenario_id else Event.for_payload(payload)
-            self._event_bus.publish(self._utterance_topic, event)
+            self._event_bus.publish(self._utterance_topic, Event.for_payload(payload))
 
             return Response(utterance.id, status=200)
 
@@ -216,21 +206,22 @@ class ChatUiService:
         return self._app
 
     def _create_payload(self, utterance: Utterance) -> TextSignalEvent:
-        scenario_id = self._chat_scenarios.get(utterance.chat_id)
-        if not scenario_id:
-            raise ValueError(f"No active scenario for chat {utterance.chat_id}")
+        if not self._scenario_id:
+            raise ValueError("No active scenario in chat UI for utterance %" + utterance.text)
 
-        signal = TextSignal.for_scenario(scenario_id, utterance.timestamp, utterance.timestamp,
+        signal = TextSignal.for_scenario(self._scenario_id, utterance.timestamp, utterance.timestamp,
                                          None, utterance.text, signal_id=utterance.id)
 
         return TextSignalEvent.for_speaker(signal)
 
     def _process(self, event: Event) -> None:
-        chat_id, is_new, last_modified = self._chats.current_chat(True)
+        if event.metadata.topic == self._scenario_topic:
+            self._process_scenario_event(event)
+            return
 
+        chat_id, is_new, last_modified = self._chats.current_chat(True)
         if is_new:
             logger.debug("Started new chat by agent: %s", chat_id)
-            self._start_scenario_for_chat(chat_id)
 
         if event.metadata.topic in self._response_topics:
             agent_name = self._agent.name if self._agent and self._agent.name else "Leolani"
@@ -243,40 +234,17 @@ class ChatUiService:
                                            event.payload.signal.text, id=event.payload.signal.id)
             self._chats.append(utterance)
 
-    def _start_scenario_for_chat(self, chat_id: str):
-        scenario = self._create_scenario()
-        self._chat_scenarios[chat_id] = scenario.id
-        self._event_bus.publish(self._scenario_topic, Event.for_payload(ScenarioStarted.create(scenario)))
-        logger.info("Started scenario %s for chat %s", scenario.id, chat_id)
+    def _process_scenario_event(self, event):
+        self._scenario_id = event.payload.scenario.id
+        if event.payload.scenario.context and event.payload.scenario.context.agent:
+            self._agent = event.payload.scenario.context.agent
+        if event.payload.scenario.context and event.payload.scenario.context.speaker:
+            self._speaker = event.payload.scenario.context.speaker
+        if event.payload.type == ScenarioStopped.__name__:
+            self._scenario_id = None
+            self._agent = None
+            self._speaker = None
+            self._chats.stop_chat()
 
-    def _create_scenario(self):
-        signals = {
-            Modality.IMAGE.name.lower(): "./image.json",
-            Modality.TEXT.name.lower(): "./text.json",
-            Modality.AUDIO.name.lower(): "./audio.json"
-        }
-
-        scenario_start = timestamp_now()
-        location = self._get_location()
-
-        scenario_context = LeolaniContext(self._agent, self._speaker, str(uuid.uuid4()), location, [], [])
-        scenario = Scenario.new_instance(str(uuid.uuid4()), scenario_start, None, scenario_context, signals)
-
-        return scenario
-
-    def _get_location(self):
-        try:
-            return requests.get("https://ipinfo.io").json()
-        except:
-            return {"country": "", "region": "", "city": ""}
-
-    def _stop_scenario_for_chat(self, chat_id: str):
-        scenario_id = self._chat_scenarios.get(chat_id)
-        if not scenario_id:
-            logger.warning(f"No scenario found for chat {chat_id}")
-            return
-
-        scenario = Scenario.new_instance(scenario_id, 0, timestamp_now(), None, {})
-        self._event_bus.publish(self._scenario_topic, Event.for_payload(ScenarioStopped.create(scenario)))
-        del self._chat_scenarios[chat_id]
-        logger.info("Stopped scenario %s for chat %s", scenario_id, chat_id)
+        logger.info("Updated Chat UI for scenario %s with agent %s, speaker %s",
+                    self._scenario_id, self._agent, self._speaker)
