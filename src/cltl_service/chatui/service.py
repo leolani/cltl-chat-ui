@@ -106,7 +106,7 @@ class ChatUiService:
 
             if remain_until_timeout < 0 and self._desire_topic:
                 logger.debug("Chat %s timed out in UI", self._chats.current_chat(False)[0])
-                self._event_bus.publish(self._desire_topic, Event.for_payload(DesireEvent(['quit'])))
+                self._event_bus.publish(self._desire_topic, Event.for_scenario_payload(self._scenario_id, DesireEvent(['quit'])))
 
             if status == 200:
                 agent_name = self._agent.name if self._agent and self._agent.name else "Leolani"
@@ -187,7 +187,7 @@ class ChatUiService:
             utterance = Utterance.for_chat(chat_id, speaker, timestamp_now(), text)
             self._chats.append(utterance)
             payload = self._create_payload(utterance)
-            self._event_bus.publish(self._utterance_topic, Event.for_payload(payload))
+            self._event_bus.publish(self._utterance_topic, Event.for_scenario_payload(self._scenario_id, payload))
 
             return Response(utterance.id, status=200)
 
