@@ -49,7 +49,13 @@ def main():
     application = ApplicationContainer()
 
     with application:
-        web_app = DispatcherMiddleware(Flask(__name__), {'/chatui': application.chatui_service.app})
+        flask_app = Flask(__name__)
+
+        @flask_app.route('/health')
+        def health():
+            return 'OK', 200
+
+        web_app = DispatcherMiddleware(flask_app, {'/chatui': application.chatui_service.app})
         run_simple('0.0.0.0', 8000, web_app, threaded=True, use_reloader=False, use_debugger=False)
 
 
