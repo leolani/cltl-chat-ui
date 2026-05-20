@@ -1,4 +1,4 @@
-# syntax = docker/dockerfile:1.2
+# syntax = docker/dockerfile:1.4
 
 ARG base_image=cltl/cltl-base:latest
 FROM ${base_image}
@@ -6,7 +6,7 @@ FROM ${base_image}
 COPY --from=leolani . /leolani/
 
 WORKDIR /cltl-chatui
-COPY setup.py requirements.txt ./
+COPY setup.py requirements.txt README.md VERSION ./
 COPY src ./src
 
 RUN pip install --no-index --no-build-isolation --find-links=/leolani -r requirements.txt && \
