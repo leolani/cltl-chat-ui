@@ -110,7 +110,7 @@ class ChatUiService:
 
             if status == 200:
                 agent_name = self._agent.name if self._agent and self._agent.name else "Leolani"
-                payload = {"id": chat_id, "agent": agent_name}
+                payload = {"id": chat_id, "agent": agent_name, "scenario_id": self._scenario_id}
             else:
                 payload = math.ceil(remain_until_timeout)
 
