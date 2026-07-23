@@ -1,6 +1,6 @@
 # syntax = docker/dockerfile:1.4
 
-ARG base_image=ghcr.io/leolani/cltl-base:latest
+ARG base_image=ghcr.io/leolani/cltl-base-slim:latest
 FROM ${base_image}
 
 LABEL org.opencontainers.image.source="https://github.com/leolani/cltl-containers"
