@@ -13,5 +13,6 @@ include util/make/makefile.component.mk
 include util/make/makefile.docker.mk
 
 
+# The front end is vendored under src/cltl_service/chatui/static/, so there is
+# nothing to fetch and nothing to clean beyond the Python build artefacts.
 clean: py-clean
-	rm -rf src/cltl_service/chatui/static/chat-bubble
