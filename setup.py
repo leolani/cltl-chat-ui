@@ -12,7 +12,9 @@ setup(
     package_dir={'': 'src'},
     packages=find_namespace_packages(include=['cltl.*', 'cltl_service.*'], where='src'),
     package_data={
-        # include nested static files; your glob workaround stays
+        # The front end is vendored, so everything under static/ has to ship:
+        # chat-bubble, Annotorious, and the page's own HTML/CSS/JS. The explicit
+        # depth ladder is a workaround for package_data not supporting **.
         "cltl_service.chatui": [
             "static/*", "static/*/*", "static/*/*/*", "static/*/*/*/*", "static/*/*/*/*/*"
         ]
@@ -26,7 +28,13 @@ setup(
     long_description=long_description,
     long_description_content_type="text/markdown",
     python_requires='>=3.8',
-    install_requires=['emissor', 'cltl.combot'],
+    # `requests` is for the best-effort PUT of uploaded pixels to cltl-backend's
+    # image storage. cv2 is deliberately NOT declared: two differently named
+    # distributions provide it (opencv-python in the app and harness virtual
+    # environments, opencv-python-headless in cltl-base-slim), and naming either
+    # breaks the other environment's --no-index install. See
+    # ChatUiService._decode_rgb.
+    install_requires=['emissor', 'cltl.combot', 'requests'],
     extras_require={
         "impl": [],
         "service": [

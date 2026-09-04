@@ -1,0 +1,18 @@
+@annotorious/annotorious 3.8.10
+https://www.npmjs.com/package/@annotorious/annotorious
+BSD-3-Clause, see LICENSE
+
+annotorious.js is the UMD build (dist/annotorious.js), which defines the global
+`Annotorious` from a plain <script> tag: no npm, no bundler, no build step.
+Do not replace it with dist/annotorious.es.js, and do not reach for
+@annotorious/react — that one ships ESM chunks with unresolved bare `react`
+imports and cannot be loaded without a bundler.
+
+To update, take dist/annotorious.js and dist/annotorious.css from the published
+tarball and refresh this file:
+
+    npm pack @annotorious/annotorious@<version>
+
+The trailing `//# sourceMappingURL=annotorious.js.map` comment is stripped: the
+map is not vendored, and leaving the comment in makes every browser with
+devtools open request a file that is not there.

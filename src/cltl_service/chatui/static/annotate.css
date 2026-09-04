@@ -1,0 +1,197 @@
+/* Two columns: the conversation, and the image being annotated beside it. */
+
+#workspace {
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+    padding: 16px;
+    box-sizing: border-box;
+}
+
+#chat {
+    flex: 1 1 480px;
+    min-width: 0;
+}
+
+/* chat-bubble's setup.css centres the container with `margin: 0 auto`, which
+   pushes it away from the annotator in a flex row. */
+#workspace .bubble-container {
+    margin: 0;
+    max-width: none;
+}
+
+#annotator {
+    flex: 1 1 420px;
+    min-width: 320px;
+    max-width: 640px;
+    height: 520px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    background: #f4f4f6;
+    border: 1px solid #d0d0d4;
+    box-sizing: border-box;
+    padding: 12px;
+    font-family: "Helvetica Neue", Helvetica, sans-serif;
+    font-size: 14px;
+    color: #2c2c2c;
+    overflow: hidden;
+}
+
+#annotator h2 {
+    font-size: 1em;
+    font-weight: 600;
+    margin: 0;
+}
+
+#annotate-canvas {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #fff;
+    border: 1px dashed #c0c0c6;
+    overflow: auto;
+}
+
+#annotate-image {
+    max-width: 100%;
+    max-height: 100%;
+}
+
+#annotate-empty {
+    color: #8a8a92;
+    padding: 24px;
+    text-align: center;
+}
+
+#annotate-regions {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    max-height: 132px;
+    overflow-y: auto;
+}
+
+.cltl-region {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 2px 0;
+}
+
+.cltl-region-selected {
+    background: #e2e8f5;
+}
+
+.cltl-region-index {
+    flex: 0 0 1.4em;
+    text-align: right;
+    color: #8a8a92;
+}
+
+.cltl-region-label {
+    flex: 1 1 auto;
+    min-width: 0;
+    font: inherit;
+    padding: 4px 6px;
+    border: 1px solid #d0d0d4;
+    border-radius: 4px;
+}
+
+.cltl-region-delete {
+    flex: 0 0 auto;
+    border: none;
+    background: none;
+    font-size: 1.2em;
+    line-height: 1;
+    cursor: pointer;
+    color: #8a8a92;
+}
+
+.cltl-region-delete:hover {
+    color: #b03030;
+}
+
+.cltl-region-bounds {
+    flex: 0 0 auto;
+    color: #8a8a92;
+    font-size: .85em;
+    white-space: nowrap;
+}
+
+#annotate-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+#annotate-controls button {
+    font: inherit;
+    padding: 6px 12px;
+    border: 1px solid #c0c0c6;
+    border-radius: 4px;
+    background: #fff;
+    cursor: pointer;
+}
+
+#annotate-controls button:disabled {
+    color: #b0b0b6;
+    cursor: default;
+}
+
+#annotate-status {
+    min-height: 1.2em;
+    color: #5a5a62;
+}
+
+#annotate-status.cltl-error {
+    color: #b03030;
+}
+
+/* The rotation handle on a rectangle cannot be switched off through
+   AnnotoriousOpts, and a rotated rectangle serialises to an SvgSelector rather
+   than an axis-aligned box. We read `geometry.bounds` regardless, but the
+   handle would still invite a gesture whose result is silently squared off. */
+.a9s-rotation-handle-group,
+.a9s-rotation-handle,
+.a9s-rotation-handle-line-fg,
+.a9s-rotation-handle-line-bg {
+    display: none;
+}
+
+/* The annotated image, echoed into the transcript. */
+.cltl-annotated img {
+    max-width: 100%;
+    display: block;
+}
+
+.cltl-annotated .cltl-boxes {
+    list-style: none;
+    margin: 4px 0 0;
+    padding: 0;
+    font-size: .9em;
+}
+
+.cltl-annotated .cltl-box {
+    display: flex;
+    gap: 8px;
+    justify-content: space-between;
+}
+
+.cltl-annotated .cltl-box-bounds {
+    color: #6a6a72;
+    white-space: nowrap;
+}
+
+@media (max-width: 900px) {
+    #workspace {
+        flex-direction: column;
+    }
+
+    #annotator {
+        max-width: none;
+        width: 100%;
+    }
+}
