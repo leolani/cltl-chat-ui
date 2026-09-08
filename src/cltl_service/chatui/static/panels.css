@@ -1,0 +1,135 @@
+/* The page layout: the conversation, and the tabbed panel beside it.
+
+   This was annotate.css's job when the panel held nothing but the annotator. It
+   moved here when the panel gained tabs, because none of it is about
+   annotation. */
+
+#workspace {
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+    padding: 16px;
+    box-sizing: border-box;
+}
+
+#chat {
+    flex: 1 1 480px;
+    min-width: 0;
+}
+
+/* chat-bubble's setup.css centres the container with `margin: 0 auto`, which
+   pushes it away from the panel in a flex row. */
+#workspace .bubble-container {
+    margin: 0;
+    max-width: none;
+}
+
+#side-panel {
+    flex: 1 1 420px;
+    min-width: 320px;
+    max-width: 640px;
+    /* Definite, and matching chat-bubble's fixed `.bubble-container` height, so
+       the two columns line up and the tabpanels have something to size
+       against. */
+    height: 520px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    background: #f4f4f6;
+    border: 1px solid #d0d0d4;
+    box-sizing: border-box;
+    padding: 12px;
+    font-family: "Helvetica Neue", Helvetica, sans-serif;
+    font-size: 14px;
+    color: #2c2c2c;
+    overflow: hidden;
+}
+
+/* An ID selector beats the user-agent sheet's `[hidden] { display: none }`, and
+   #side-panel, #annotator and #monitor are all `display: flex`. Without this,
+   setting `hidden` on any of them does nothing at all. Both halves are needed:
+   the first for the column itself, when a deployment offers neither panel; the
+   second for the tabpanels and the tab buttons inside it. */
+#side-panel[hidden],
+#side-panel [hidden] {
+    display: none !important;
+}
+
+#panel-tabs {
+    flex: 0 0 auto;
+    display: flex;
+    gap: 4px;
+    /* The strip sits on the panel's top edge; the selected tab joins the body
+       below it by painting over this line. */
+    border-bottom: 1px solid #d0d0d4;
+}
+
+#panel-tabs button {
+    font: inherit;
+    color: #5a5a62;
+    padding: 6px 12px;
+    border: 1px solid transparent;
+    border-bottom: none;
+    border-radius: 4px 4px 0 0;
+    background: none;
+    cursor: pointer;
+    /* Cover the strip's own border, so the selected tab and the panel read as
+       one surface. */
+    margin-bottom: -1px;
+}
+
+#panel-tabs button:hover {
+    color: #2c2c2c;
+}
+
+#panel-tabs button[aria-selected="true"] {
+    color: #2c2c2c;
+    background: #f4f4f6;
+    border-color: #d0d0d4;
+    border-bottom: 1px solid #f4f4f6;
+}
+
+#panel-tabs button:focus-visible {
+    outline: 2px solid #4a6fb5;
+    outline-offset: -2px;
+}
+
+/* One panel is not a choice. When only one is enabled there is nothing to
+   switch between, so the strip goes and the panel takes the whole column. */
+#panel-tabs.cltl-single-tab {
+    display: none;
+}
+
+#monitor {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+#monitor-frame {
+    flex: 1 1 auto;
+    min-height: 0;
+    width: 100%;
+    border: 1px solid #d0d0d4;
+    background: #fff;
+}
+
+#monitor-status {
+    flex: 0 0 auto;
+    min-height: 1.2em;
+    margin: 0;
+    color: #5a5a62;
+}
+
+@media (max-width: 900px) {
+    #workspace {
+        flex-direction: column;
+    }
+
+    #side-panel {
+        max-width: none;
+        width: 100%;
+    }
+}

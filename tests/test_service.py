@@ -7,6 +7,7 @@ response topic becomes an utterance attributed to the agent.
 """
 import unittest
 
+from cltl.chatui.memory import MemoryImageStore
 from cltl.combot.infra.event import Event
 
 from tests.support import (RESPONSE_TOPIC, UTTERANCE_TOPIC, Listener, ServiceHarness,
@@ -126,6 +127,7 @@ class ChatUITest(unittest.TestCase):
 
         for path in ("static/chat.html", "static/chat.js", "static/chat.css",
                      "static/annotate.js", "static/annotate.css",
+                     "static/panels.js", "static/panels.css",
                      "static/annotorious/annotorious.js", "static/annotorious/annotorious.css",
                      "static/chat-bubble/component/Bubbles.js",
                      "static/chat-bubble/component/styles/setup.css"):
@@ -140,6 +142,69 @@ class ChatUITest(unittest.TestCase):
 
         self.assertNotIn("http://", page)
         self.assertNotIn("https://", page)
+
+
+
+class ConfigTest(unittest.TestCase):
+    """What the page is told about the deployment it is running in."""
+
+    def start(self, **kwargs):
+        harness = ServiceHarness(**kwargs)
+        self.addCleanup(harness.stop)
+
+        return harness
+
+    def test_it_reports_the_monitoring_url(self):
+        harness = self.start(monitoring_url="/monitoring")
+
+        self.assertEqual("/monitoring", harness.client.get("/config").get_json()["monitoring_url"])
+
+    def test_no_monitoring_url_is_reported_as_null(self):
+        """The page leaves the tab out entirely rather than framing nothing."""
+        harness = self.start(monitoring_url="")
+
+        self.assertIsNone(harness.client.get("/config").get_json()["monitoring_url"])
+
+    def test_it_reports_whether_upload_is_enabled(self):
+        self.assertTrue(self.start(image_store=MemoryImageStore())
+                        .client.get("/config").get_json()["image_upload"])
+        self.assertFalse(self.start().client.get("/config").get_json()["image_upload"])
+
+
+class CurrentScenarioTest(unittest.TestCase):
+    def start(self, **kwargs):
+        harness = ServiceHarness(**kwargs)
+        self.addCleanup(harness.stop)
+
+        return harness
+
+    def test_it_reports_no_scenario_before_one_starts(self):
+        harness = self.start()
+
+        self.assertIsNone(harness.client.get("/chat/scenario").get_json()["scenario_id"])
+
+    def test_it_reports_the_running_scenario(self):
+        harness = self.start()
+        scenario = start_scenario(harness.event_bus)
+        harness.await_scenario()
+
+        self.assertEqual(scenario.id,
+                         harness.client.get("/chat/scenario").get_json()["scenario_id"])
+
+    def test_it_does_not_reset_the_inactivity_timeout(self):
+        """A poller on this route must not keep a chat alive indefinitely.
+
+        `/chat/current` bumps the chat's last-modified timestamp on every call,
+        which is why the page cannot poll that one: the timeout would never fire
+        while a browser had the page open.
+        """
+        harness = self.start(timeout=1)
+        harness.chat_id()
+        before = harness.chats.current_chat(False)[2]
+
+        harness.client.get("/chat/scenario")
+
+        self.assertEqual(before, harness.chats.current_chat(False)[2])
 
 
 if __name__ == '__main__':

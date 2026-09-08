@@ -44,6 +44,7 @@ class ChatUiService:
         image_upload_timeout = (config.get_int("image_upload_timeout")
                                 if "image_upload_timeout" in config else DEFAULT_UPLOAD_TIMEOUT)
         image_storage_url = cls._image_storage_url(config, config_manager)
+        monitoring_url = config.get("monitoring_url") if "monitoring_url" in config else None
 
         config = config_manager.get_config("cltl.chat-ui.events")
         utterance_topic = config.get("topic_utterance")
@@ -55,7 +56,8 @@ class ChatUiService:
         return cls(name, external_input, utterance_topic, response_topics, scenario_topic, desire_topic,
                    timeout, chats, event_bus, resource_manager,
                    image_store=image_store, image_topic=image_topic, image_types=image_types,
-                   image_storage_url=image_storage_url, image_upload_timeout=image_upload_timeout)
+                   image_storage_url=image_storage_url, image_upload_timeout=image_upload_timeout,
+                   monitoring_url=monitoring_url)
 
     @staticmethod
     def _image_storage_url(config, config_manager: ConfigurationManager) -> Optional[str]:
@@ -86,7 +88,8 @@ class ChatUiService:
                  image_store: ImageStore = None, image_topic: str = None,
                  image_types: Iterable[str] = DEFAULT_IMAGE_TYPES,
                  image_storage_url: str = None,
-                 image_upload_timeout: int = DEFAULT_UPLOAD_TIMEOUT):
+                 image_upload_timeout: int = DEFAULT_UPLOAD_TIMEOUT,
+                 monitoring_url: str = None):
         self._name = name
         self._external_input = external_input
 
@@ -97,6 +100,11 @@ class ChatUiService:
         self._image_types = {image_type.strip().lower() for image_type in image_types if image_type}
         self._image_storage_url = image_storage_url
         self._image_upload_timeout = image_upload_timeout
+
+        # Where the browser reaches cltl-monitoring. Empty means the deployment
+        # has none, and the page leaves the tab out entirely. The chat UI never
+        # calls it: this is a URL handed to the page, not a service dependency.
+        self._monitoring_url = monitoring_url
 
         self._response_topics = response_topics
         self._utterance_topic = utterance_topic
@@ -372,6 +380,29 @@ class ChatUiService:
             return jsonify({"signal_id": signal.id,
                             "utterance_id": utterance.id,
                             "mentions": len(signal.mentions)}), 200
+
+        @self._app.route('/config', methods=['GET'])
+        def ui_config():
+            """What the page needs to know about how this deployment is set up.
+
+            The first configuration value the chat UI has ever handed to the
+            browser. Until now the page rendered every panel unconditionally and
+            found out from a 404 that a feature was switched off, which is why
+            `annotate.js` captures the annotator panel and never hides it.
+            """
+            return jsonify({"image_upload": bool(self._image_store),
+                            "monitoring_url": self._monitoring_url or None}), 200
+
+        @self._app.route('/chat/scenario', methods=['GET'])
+        def current_scenario():
+            """The scenario the chat is in, with no side effects.
+
+            Deliberately not served by `/chat/current`, which mints a chat id and
+            resets the inactivity timeout on every call: a second poller on that
+            route would keep a chat alive for as long as the page is open, and
+            the timeout would never fire.
+            """
+            return jsonify({"scenario_id": self._scenario_id}), 200
 
         @self._app.route('/urlmap')
         def url_map():

@@ -1,47 +1,16 @@
-/* Two columns: the conversation, and the image being annotated beside it. */
-
-#workspace {
-    display: flex;
-    align-items: flex-start;
-    gap: 16px;
-    padding: 16px;
-    box-sizing: border-box;
-}
-
-#chat {
-    flex: 1 1 480px;
-    min-width: 0;
-}
-
-/* chat-bubble's setup.css centres the container with `margin: 0 auto`, which
-   pushes it away from the annotator in a flex row. */
-#workspace .bubble-container {
-    margin: 0;
-    max-width: none;
-}
+/* The image annotator. The page layout it used to live in — the two columns,
+   the tab strip and the panel chrome — is in panels.css now; what is left here
+   is the annotator itself, which is one tab of that panel. */
 
 #annotator {
-    flex: 1 1 420px;
-    min-width: 320px;
-    max-width: 640px;
-    height: 520px;
+    /* A tabpanel of #side-panel, which is the element with a definite height.
+       `flex: 1 1 auto` plus `min-height: 0` is what lets #annotate-canvas below
+       resolve its own `flex: 1 1 auto` against it instead of overflowing. */
+    flex: 1 1 auto;
+    min-height: 0;
     display: flex;
     flex-direction: column;
     gap: 8px;
-    background: #f4f4f6;
-    border: 1px solid #d0d0d4;
-    box-sizing: border-box;
-    padding: 12px;
-    font-family: "Helvetica Neue", Helvetica, sans-serif;
-    font-size: 14px;
-    color: #2c2c2c;
-    overflow: hidden;
-}
-
-#annotator h2 {
-    font-size: 1em;
-    font-weight: 600;
-    margin: 0;
 }
 
 #annotate-canvas {
@@ -183,15 +152,4 @@
 .cltl-annotated .cltl-box-bounds {
     color: #6a6a72;
     white-space: nowrap;
-}
-
-@media (max-width: 900px) {
-    #workspace {
-        flex-direction: column;
-    }
-
-    #annotator {
-        max-width: none;
-        width: 100%;
-    }
 }
