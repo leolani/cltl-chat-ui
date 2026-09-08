@@ -86,6 +86,9 @@ function Bubbles(container, self, options) {
         typeof bubbleQueue !== false ? clearTimeout(bubbleQueue) : false // allow user to interrupt the bot
         var lastBubble = document.querySelectorAll(".bubble.say")
         lastBubble = lastBubble[lastBubble.length - 1]
+        // Deviation from upstream: guard against no .bubble.say existing yet
+        // (pressing Enter before the agent's opening bubble has rendered).
+        lastBubble &&
         lastBubble.classList.contains("reply") &&
         !lastBubble.classList.contains("reply-freeform")
           ? lastBubble.classList.add("bubble-hidden")
