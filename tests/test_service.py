@@ -127,7 +127,7 @@ class ChatUITest(unittest.TestCase):
 
         for path in ("static/chat.html", "static/chat.js", "static/chat.css",
                      "static/annotate.js", "static/annotate.css",
-                     "static/panels.js", "static/panels.css",
+                     "static/panels.js", "static/panels.css", "static/stop.js",
                      "static/annotorious/annotorious.js", "static/annotorious/annotorious.css",
                      "static/chat-bubble/component/Bubbles.js",
                      "static/chat-bubble/component/styles/setup.css"):
@@ -164,6 +164,19 @@ class ConfigTest(unittest.TestCase):
         harness = self.start(monitoring_url="")
 
         self.assertIsNone(harness.client.get("/config").get_json()["monitoring_url"])
+
+    def test_it_reports_the_stop_phrase(self):
+        harness = self.start(stop_phrase="bye")
+
+        self.assertEqual("bye", harness.client.get("/config").get_json()["stop_phrase"])
+
+    def test_no_stop_phrase_is_reported_as_null(self):
+        """The page leaves the button out rather than offering one that says nothing."""
+        for stop_phrase in (None, "", "  "):
+            with self.subTest(stop_phrase=stop_phrase):
+                harness = self.start(stop_phrase=stop_phrase)
+
+                self.assertIsNone(harness.client.get("/config").get_json()["stop_phrase"])
 
     def test_it_reports_whether_upload_is_enabled(self):
         self.assertTrue(self.start(image_store=MemoryImageStore())

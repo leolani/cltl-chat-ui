@@ -21,6 +21,10 @@
       <!-- container element for chat window -->
       <div id="chat"></div>
 
+      <!-- Left out unless the deployment configures a stop phrase; stop.js
+           decides. -->
+      <button id="stop-scenario" type="button" hidden disabled>Stop conversation</button>
+
       <!-- The column beside the conversation. Which panels it offers depends on
            the deployment, so panels.js asks the service and hides the rest;
            nothing here assumes both exist. -->
@@ -72,5 +76,6 @@
     <script src="chat.js"></script>
     <script src="annotate.js"></script>
     <script src="panels.js"></script>
+    <script src="stop.js"></script>
   </body>
 </html>

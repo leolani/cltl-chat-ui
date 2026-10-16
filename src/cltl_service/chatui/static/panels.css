@@ -133,3 +133,11 @@
         width: 100%;
     }
 }
+
+/* Out of the flex row: it is a control on the page, not a column. */
+#stop-scenario {
+    position: fixed;
+    top: 8px;
+    right: 16px;
+    z-index: 10;
+}

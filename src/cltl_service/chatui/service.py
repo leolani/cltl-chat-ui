@@ -45,6 +45,7 @@ class ChatUiService:
                                 if "image_upload_timeout" in config else DEFAULT_UPLOAD_TIMEOUT)
         image_storage_url = cls._image_storage_url(config, config_manager)
         monitoring_url = config.get("monitoring_url") if "monitoring_url" in config else None
+        stop_phrase = config.get("stop_phrase") if "stop_phrase" in config else None
 
         config = config_manager.get_config("cltl.chat-ui.events")
         utterance_topic = config.get("topic_utterance")
@@ -57,7 +58,7 @@ class ChatUiService:
                    timeout, chats, event_bus, resource_manager,
                    image_store=image_store, image_topic=image_topic, image_types=image_types,
                    image_storage_url=image_storage_url, image_upload_timeout=image_upload_timeout,
-                   monitoring_url=monitoring_url)
+                   monitoring_url=monitoring_url, stop_phrase=stop_phrase)
 
     @staticmethod
     def _image_storage_url(config, config_manager: ConfigurationManager) -> Optional[str]:
@@ -89,7 +90,7 @@ class ChatUiService:
                  image_types: Iterable[str] = DEFAULT_IMAGE_TYPES,
                  image_storage_url: str = None,
                  image_upload_timeout: int = DEFAULT_UPLOAD_TIMEOUT,
-                 monitoring_url: str = None):
+                 monitoring_url: str = None, stop_phrase: str = None):
         self._name = name
         self._external_input = external_input
 
@@ -105,6 +106,12 @@ class ChatUiService:
         # has none, and the page leaves the tab out entirely. The chat UI never
         # calls it: this is a URL handed to the page, not a service dependency.
         self._monitoring_url = monitoring_url
+
+        # What the stop button says on the user's behalf. It is sent as an
+        # ordinary utterance, so it only stops a scenario if it is one of the
+        # deployment's `[cltl.keyword] keywords`; nothing here checks that.
+        # Empty means the deployment has no such button.
+        self._stop_phrase = (stop_phrase or "").strip() or None
 
         self._response_topics = response_topics
         self._utterance_topic = utterance_topic
@@ -391,7 +398,8 @@ class ChatUiService:
             `annotate.js` captures the annotator panel and never hides it.
             """
             return jsonify({"image_upload": bool(self._image_store),
-                            "monitoring_url": self._monitoring_url or None}), 200
+                            "monitoring_url": self._monitoring_url or None,
+                            "stop_phrase": self._stop_phrase}), 200
 
         @self._app.route('/chat/scenario', methods=['GET'])
         def current_scenario():
