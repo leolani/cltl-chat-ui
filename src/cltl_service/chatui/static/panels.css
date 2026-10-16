@@ -12,9 +12,19 @@
     box-sizing: border-box;
 }
 
-#chat {
+/* The column the flex row sees; the chat window and its controls stack inside. */
+#conversation {
     flex: 1 1 480px;
     min-width: 0;
+}
+
+#stop-scenario {
+    display: block;
+    margin: 8px 0 0 auto;
+}
+
+#stop-scenario[hidden] {
+    display: none;
 }
 
 /* chat-bubble's setup.css centres the container with `margin: 0 auto`, which
@@ -134,10 +144,8 @@
     }
 }
 
-/* Out of the flex row: it is a control on the page, not a column. */
-#stop-scenario {
-    position: fixed;
-    top: 8px;
-    right: 16px;
-    z-index: 10;
+#stop-scenario.cltl-stopped {
+    background: #c62828;
+    border-color: #8e1c1c;
+    color: #fff;
 }

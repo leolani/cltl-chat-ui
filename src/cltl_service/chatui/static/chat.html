@@ -18,12 +18,17 @@
   </head>
   <body>
     <div id="workspace">
-      <!-- container element for chat window -->
-      <div id="chat"></div>
+      <!-- The conversation and the controls under it. The chat window fills
+           #chat itself, so anything that belongs beneath its input field has to
+           sit outside it, in this column. -->
+      <div id="conversation">
+        <!-- container element for chat window -->
+        <div id="chat"></div>
 
-      <!-- Left out unless the deployment configures a stop phrase; stop.js
-           decides. -->
-      <button id="stop-scenario" type="button" hidden disabled>Stop conversation</button>
+        <!-- Left out unless the deployment configures a stop phrase; stop.js
+             decides. -->
+        <button id="stop-scenario" type="button" hidden disabled>Stop conversation</button>
+      </div>
 
       <!-- The column beside the conversation. Which panels it offers depends on
            the deployment, so panels.js asks the service and hides the rest;

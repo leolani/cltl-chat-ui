@@ -10,6 +10,10 @@
  * keywords, and the keyword service ignores it outside the `eliza` intention, so
  * a press while the conversation is still being set up does nothing. The page
  * only knows whether a scenario exists, so that is what the button follows.
+ *
+ * After a press the button turns red and reloads the page on the next press: the
+ * UI is not usable for a new conversation until it is reloaded, but doing that
+ * automatically would take the finished conversation away from the reader.
  */
 (function () {
     "use strict";
@@ -19,8 +23,16 @@
     // Served from <mount>/static/stop.js: two segments, as in chat.js.
     var restPath = window.location.pathname.split("/").slice(0, -2).join("/");
 
+    var LABEL_STOP = "Stop conversation";
+    var LABEL_RELOAD = "Reload for a new conversation";
+    var TOOLTIP_RELOAD = "Reload to switch to a new chat";
+
     var button = null;
     var phrase = null;
+    // Once the stop phrase has been sent the button becomes a reload button and
+    // stays one. The page is never reloaded for the user: they may still want
+    // to read the conversation, and the reload discards it from view.
+    var stopped = false;
 
     document.addEventListener("DOMContentLoaded", function () {
         button = document.getElementById("stop-scenario");
@@ -35,12 +47,20 @@
             }
 
             button.hidden = false;
-            button.addEventListener("click", stop);
+            button.addEventListener("click", onClick);
             pollScenario();
         }, function (error) {
             console.log("Could not read the chat UI configuration:", error);
         });
     });
+
+    function onClick() {
+        if (stopped) {
+            window.location.reload();
+        } else {
+            stop();
+        }
+    }
 
     function stop() {
         var input = document.querySelector("#chat .input-wrap textarea");
@@ -55,12 +75,18 @@
 
         input.value = phrase;
         input.dispatchEvent(enter);
-        button.disabled = true;
+
+        stopped = true;
+        button.textContent = LABEL_RELOAD;
+        button.title = TOOLTIP_RELOAD;
+        button.classList.add("cltl-stopped");
+        button.disabled = false;
     }
 
     function pollScenario() {
         get("/chat/scenario").then(function (data) {
-            button.disabled = !data.scenario_id;
+            // A stopped page is waiting for a reload whatever the scenario does.
+            button.disabled = stopped ? false : !data.scenario_id;
         }, function (error) {
             console.log("Could not read the current scenario:", error);
         }).then(reschedule, reschedule);
