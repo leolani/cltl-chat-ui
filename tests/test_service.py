@@ -128,6 +128,7 @@ class ChatUITest(unittest.TestCase):
         for path in ("static/chat.html", "static/chat.js", "static/chat.css",
                      "static/annotate.js", "static/annotate.css",
                      "static/panels.js", "static/panels.css", "static/stop.js",
+                     "static/status.js", "static/status.css",
                      "static/annotorious/annotorious.js", "static/annotorious/annotorious.css",
                      "static/chat-bubble/component/Bubbles.js",
                      "static/chat-bubble/component/styles/setup.css"):

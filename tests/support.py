@@ -11,6 +11,7 @@ import zlib
 from queue import Empty, Queue
 from typing import Optional
 
+from cltl.combot.event.status import StatusEvent
 from cltl.combot.event.emissor import (Agent, LeolaniContext, ScenarioStarted, ScenarioStopped,
                                        TextSignalEvent)
 from cltl.combot.infra.event import Event
@@ -25,6 +26,7 @@ UTTERANCE_TOPIC = "test.topic.text_in"
 RESPONSE_TOPIC = "test.topic.text_out"
 SCENARIO_TOPIC = "test.topic.scenario"
 IMAGE_TOPIC = "test.topic.image"
+STATUS_TOPIC = "test.topic.status"
 
 AGENT_NAME = "Leolani"
 SPEAKER_NAME = "Human"
@@ -55,6 +57,14 @@ def start_scenario(event_bus, scenario: Scenario = None) -> Scenario:
 def stop_scenario(event_bus, scenario: Scenario) -> None:
     scenario.ruler.end = timestamp_now()
     event_bus.publish(SCENARIO_TOPIC, Event.for_payload(ScenarioStopped.create(scenario)))
+
+
+def publish_status(event_bus, scenario_id: Optional[str], message: str = "working", source: str = "test",
+                   **kwargs) -> None:
+    payload = StatusEvent(message, source, **kwargs)
+    event = (Event.for_scenario_payload(scenario_id, payload) if scenario_id
+             else Event.for_payload(payload))
+    event_bus.publish(STATUS_TOPIC, event)
 
 
 def agent_response(scenario_id: str, text: str) -> TextSignalEvent:
@@ -164,6 +174,14 @@ class ServiceHarness:
     def await_no_scenario(self, timeout: float = 5.0) -> None:
         _await(lambda: self.current()["scenario_id"] is None, timeout,
                "the service still has a scenario")
+
+    def status(self, from_sequence: int = 0) -> dict:
+        return self.client.get(f"/chat/status?from={from_sequence}").get_json()
+
+    def await_status(self, count: int, timeout: float = 5.0) -> dict:
+        """Block until `count` rows have reached the timeline (the worker is asynchronous)."""
+        return _await(lambda: (lambda s: s if len(s["events"]) >= count else None)(self.status()),
+                      timeout, f"fewer than {count} status row(s)")
 
     def await_utterances(self, chat_id: str, count: int, timeout: float = 5.0):
         def enough():

@@ -15,6 +15,7 @@
     <link rel="stylesheet" media="all" href="chat.css" />
     <link rel="stylesheet" media="all" href="annotate.css" />
     <link rel="stylesheet" media="all" href="panels.css" />
+    <link rel="stylesheet" media="all" href="status.css" />
   </head>
   <body>
     <div id="workspace">
@@ -27,6 +28,21 @@
 
         <!-- Left out unless the deployment configures a stop phrase; stop.js
              decides. -->
+        <!-- What the backend's modules are doing. Left out unless the
+             deployment configures a status topic; status.js decides. The
+             timeline opens upward over the chat window, so the bar itself never
+             moves the page. -->
+        <div id="status-bar" hidden>
+          <ol id="status-timeline" hidden></ol>
+          <button id="status-toggle" type="button" aria-expanded="false" aria-controls="status-timeline">
+            <span id="status-level" class="status-level" data-level="none"></span>
+            <span id="status-source"></span>
+            <span id="status-message">No status</span>
+            <progress id="status-progress" max="1" hidden></progress>
+            <span class="status-chevron" aria-hidden="true">&#9650;</span>
+          </button>
+        </div>
+
         <button id="stop-scenario" type="button" hidden disabled>Stop conversation</button>
       </div>
 
@@ -82,5 +98,6 @@
     <script src="annotate.js"></script>
     <script src="panels.js"></script>
     <script src="stop.js"></script>
+    <script src="status.js"></script>
   </body>
 </html>
