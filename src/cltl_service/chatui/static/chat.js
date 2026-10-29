@@ -133,7 +133,9 @@ document.addEventListener("DOMContentLoaded", function () {
         // The Chat UI accepts blocks of agent utterances - user utterances.
         // Agent utterances are submitted as text array in 'says'
         // User utterances are submitted as question-answer replies
-        let agent = currentTurn.agent.map(utt => `${utt.speaker}> ${utt.text}`);
+        // A line without a speaker (a persistent status) names itself.
+        let said = utt => utt.speaker ? `${utt.speaker}> ${utt.text}` : utt.text;
+        let agent = currentTurn.agent.map(said);
         let other = currentTurn.other.map(utt => `${utt.speaker}> ${utt.text}`).join(" |");
 
         convo = {}

@@ -102,6 +102,8 @@
         var item = document.createElement("li");
         if (event.resolved) {
             item.className = "cltl-resolved";
+        } else if (event.persistent) {
+            item.className = "cltl-persistent";
         }
 
         var dot = document.createElement("span");

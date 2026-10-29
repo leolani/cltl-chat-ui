@@ -629,7 +629,30 @@ class ChatUiService:
             return
 
         self._status.add(payload.message, payload.source, payload.level, payload.progress,
-                         payload.ttl, payload.key, payload.resolved)
+                         payload.ttl, payload.key, payload.resolved, payload.persistent)
+
+        if payload.persistent:
+            self._append_status_line(payload)
+
+    def _append_status_line(self, status: StatusEvent) -> None:
+        """Leave a status in the transcript, where it stays.
+
+        Same route as the image echo: an escaped `text/html` utterance, so
+        ordering, replay on reload and retention are the chat's own. It has no
+        speaker, because `chat.js` would print `speaker>` in front of it, and it
+        is neither published nor stored by EMISSOR. The chat is created if no one
+        has opened it yet, and its timeout is left alone.
+        """
+        chat_id, is_new, _ = self._chats.current_chat(True)
+        if is_new:
+            logger.debug("Started new chat by status: %s", chat_id)
+
+        markup = (f'<span class="cltl-status-line cltl-status-{html.escape(status.level, quote=True)}">'
+                  f'<span class="cltl-status-source">{html.escape(status.source)}</span> '
+                  f'{html.escape(status.message)}</span>')
+        self._chats.append(Utterance.for_chat(chat_id, "", timestamp_now(), markup,
+                                              content_type=HTML_CONTENT_TYPE),
+                           modify_timestamp=False)
 
     def _process_scenario_event(self, event):
         self._scenario_id = event.payload.scenario.id

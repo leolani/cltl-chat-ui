@@ -4,7 +4,7 @@ import unittest
 from cltl.chatui.status import StatusLog
 from cltl.combot.event.status import StatusEvent
 
-from tests.support import (STATUS_TOPIC, ServiceHarness, publish_status, start_scenario,
+from tests.support import (STATUS_TOPIC, _await, ServiceHarness, publish_status, start_scenario,
                            stop_scenario)
 
 
@@ -102,6 +102,23 @@ class StatusLogTest(unittest.TestCase):
         self.assertEqual([1], [e.sequence for e in self.log.since(0)])
 
 
+class PersistentStatusLogTest(unittest.TestCase):
+    def setUp(self):
+        self.log = StatusLog(10, FakeClock())
+
+    def test_a_persistent_entry_is_a_row_and_never_the_bar(self):
+        self.log.add("kept", "x", level="error", persistent=True)
+
+        self.assertIsNone(self.log.current())
+        self.assertTrue(self.log.since(0)[0].to_dict()["persistent"])
+
+    def test_its_key_neither_replaces_nor_ends_a_status(self):
+        self.log.add("working", "x", key="k")
+        self.log.add("kept", "x", key="k", persistent=True)
+
+        self.assertEqual("working", self.log.current().message)
+
+
 class StatusEventTest(unittest.TestCase):
     def test_validation(self):
         for kwargs in ({"level": "fatal"}, {"progress": 1.5}, {"ttl": -1}, {"resolved": True}):
@@ -177,6 +194,96 @@ class StatusServiceTest(unittest.TestCase):
         status = harness.status()
         self.assertEqual([], status["events"])
         self.assertIsNone(status["current"])
+
+    def persistent(self, harness, scenario, message="Went offline", source="asr", **kwargs):
+        publish_status(harness.event_bus, scenario.id, message, source, persistent=True, **kwargs)
+
+    def test_a_persistent_status_lands_in_the_chat_and_not_the_bar(self):
+        harness = self.start()
+        scenario = start_scenario(harness.event_bus)
+        harness.await_scenario()
+        chat_id = harness.chat_id()
+
+        self.persistent(harness, scenario, level="warning")
+
+        utterance, = harness.await_utterances(chat_id, 1)
+        self.assertEqual("text/html", utterance["content_type"])
+        self.assertEqual("", utterance["speaker"])
+        self.assertIn("Went offline", utterance["text"])
+        self.assertIn("cltl-status-warning", utterance["text"])
+        status = harness.status()
+        self.assertIsNone(status["current"])
+        self.assertTrue(status["events"][0]["persistent"])
+
+    def test_the_markup_of_a_persistent_status_is_escaped(self):
+        harness = self.start()
+        scenario = start_scenario(harness.event_bus)
+        harness.await_scenario()
+        chat_id = harness.chat_id()
+
+        self.persistent(harness, scenario, "<script>alert(1)</script>", "<b>src</b>")
+
+        text = harness.await_utterances(chat_id, 1)[0]["text"]
+        self.assertNotIn("<script>", text)
+        self.assertNotIn("<b>", text)
+        self.assertIn("&lt;script&gt;", text)
+
+    def test_a_persistent_status_is_ordered_among_the_utterances(self):
+        harness = self.start()
+        scenario = start_scenario(harness.event_bus)
+        harness.await_scenario()
+        chat_id = harness.chat_id()
+        harness.client.post(f"/chat/{chat_id}", data="before")
+        harness.await_utterances(chat_id, 1)
+
+        self.persistent(harness, scenario)
+        harness.await_utterances(chat_id, 2)
+        harness.client.post(f"/chat/{chat_id}", data="after")
+
+        texts = [u["text"] for u in harness.await_utterances(chat_id, 3)]
+        self.assertEqual("before", texts[0])
+        self.assertIn("Went offline", texts[1])
+        self.assertEqual("after", texts[2])
+
+    def test_a_persistent_status_creates_the_chat_and_survives_the_scenario(self):
+        harness = self.start()
+        scenario = start_scenario(harness.event_bus)
+        harness.await_scenario()
+
+        self.persistent(harness, scenario)
+        chat_id = _await(lambda: harness.chats.current_chat(False)[0], 5.0, "no chat was created")
+        harness.await_utterances(chat_id, 1)
+        stop_scenario(harness.event_bus, scenario)
+        harness.await_no_scenario()
+
+        # The chat ends with its scenario and is no longer served, but the status
+        # line is part of it like any utterance, not cleared like the timeline.
+        self.assertEqual(1, len(list(harness.chats.get_utterances(chat_id))))
+
+    def test_a_persistent_status_of_another_scenario_is_dropped(self):
+        harness = self.start()
+        scenario = start_scenario(harness.event_bus)
+        harness.await_scenario()
+        chat_id = harness.chat_id()
+
+        publish_status(harness.event_bus, "another", "nope", persistent=True)
+        self.persistent(harness, scenario, "yes")
+
+        utterances = harness.await_utterances(chat_id, 1)
+        self.assertEqual(1, len(utterances))
+        self.assertIn("yes", utterances[0]["text"])
+
+    def test_a_persistent_status_does_not_reset_the_inactivity_timeout(self):
+        harness = self.start(timeout=1)
+        scenario = start_scenario(harness.event_bus)
+        harness.await_scenario()
+        chat_id = harness.chat_id()
+        before = harness.chats.current_chat(False)[2]
+
+        self.persistent(harness, scenario)
+        harness.await_utterances(chat_id, 1)
+
+        self.assertEqual(before, harness.chats.current_chat(False)[2])
 
     def test_polling_does_not_reset_the_inactivity_timeout(self):
         harness = self.start(timeout=1)

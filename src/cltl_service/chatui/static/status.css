@@ -128,3 +128,42 @@
 #status-timeline .status-empty {
     color: #888;
 }
+
+/* A persistent status, as a line in the transcript. It is rendered inside one of
+   Bubbles' agent bubbles, so it is the bubble that has to be restyled, and CSS
+   can only find that bubble from the inside with :has(). */
+.bubble:has(.cltl-status-line) {
+    max-width: 100%;
+    width: fit-content;
+    margin: 6px auto;
+    padding: 2px 12px;
+    background: transparent;
+    border-radius: 10px;
+    font-size: 13px;
+    text-align: center;
+    color: #555;
+}
+
+.cltl-status-line {
+    border-left: 3px solid #3b8fd9;
+    padding-left: 8px;
+}
+
+.cltl-status-line.cltl-status-warning {
+    border-left-color: #e6a100;
+}
+
+.cltl-status-line.cltl-status-error {
+    border-left-color: #d63a3a;
+    color: #a82a2a;
+}
+
+.cltl-status-source {
+    font-weight: bold;
+}
+
+/* The timeline row of a status that went to the chat instead of the bar. */
+#status-timeline li.cltl-persistent .status-text::after {
+    content: " \2014 in chat";
+    color: #888;
+}

@@ -17,12 +17,14 @@ class StatusEntry:
     progress: Optional[float]
     key: Optional[str]
     resolved: bool
+    persistent: bool
     expires: Optional[float]
 
     def to_dict(self) -> dict:
         return {"sequence": self.sequence, "time": self.time, "message": self.message,
                 "source": self.source, "level": self.level, "progress": self.progress,
-                "key": self.key, "resolved": self.resolved}
+                "key": self.key, "resolved": self.resolved,
+                "persistent": self.persistent}
 
 
 class StatusLog:
@@ -30,7 +32,9 @@ class StatusLog:
 
     Every event is a row. Which row the bar shows is decided separately: among
     entries that are neither expired nor ended nor replaced, the highest level
-    wins and the newest of those. Expiry is measured from receipt, because the
+    wins and the newest of those. A persistent entry is a line in the chat
+    history, so it is a row here and never a candidate for the bar, nor does its
+    key replace or end anything. Expiry is measured from receipt, because the
     emitter's clock is not ours.
     """
 
@@ -41,11 +45,12 @@ class StatusLog:
         self._lock = Lock()
 
     def add(self, message: str, source: str, level: str = "info", progress: Optional[float] = None,
-            ttl: Optional[float] = None, key: Optional[str] = None, resolved: bool = False) -> StatusEntry:
+            ttl: Optional[float] = None, key: Optional[str] = None, resolved: bool = False,
+            persistent: bool = False) -> StatusEntry:
         with self._lock:
             now = self._clock()
             entry = StatusEntry(self._next, now, message, source, level, progress, key, resolved,
-                                now + ttl if ttl is not None else None)
+                                persistent, now + ttl if ttl is not None else None)
             self._next += 1
             self._entries.append(entry)
 
@@ -72,6 +77,8 @@ class StatusLog:
             superseded = set()
             candidates = []
             for entry in reversed(self._entries):
+                if entry.persistent:
+                    continue
                 if entry.key:
                     if entry.key in superseded:
                         continue
