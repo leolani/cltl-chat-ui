@@ -76,6 +76,9 @@
             if (entry.panel.id === "monitor") {
                 return !!monitoringUrl;
             }
+            if (entry.panel.id === "display") {
+                return config.display_enabled === true;
+            }
             return true;
         });
 

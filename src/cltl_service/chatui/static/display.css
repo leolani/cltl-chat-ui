@@ -1,0 +1,73 @@
+/*
+ * The Display tab: a page another module asked to have shown, and the list of
+ * everything shown so far in this conversation.
+ */
+#display {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+#display-controls {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+#display-title {
+    flex: 0 1 auto;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+#display-history {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+#display-open {
+    flex: 0 0 auto;
+    white-space: nowrap;
+}
+
+#display-frame {
+    flex: 1 1 auto;
+    min-height: 0;
+    width: 100%;
+    border: 1px solid #d0d0d4;
+    background: #fff;
+}
+
+#display-status {
+    flex: 0 0 auto;
+    min-height: 1.2em;
+    margin: 0;
+    color: #5a5a62;
+}
+
+#display-badge {
+    margin-left: 4px;
+    padding: 0 6px;
+    border-radius: 8px;
+    background: #4a6fb5;
+    color: #fff;
+    font-size: 0.75em;
+}
+
+#display-badge[hidden],
+#display [hidden] {
+    display: none !important;
+}
+
+.cltl-visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+}

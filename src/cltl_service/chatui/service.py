@@ -22,6 +22,7 @@ from flask import jsonify, request, make_response, url_for
 
 from cltl.chatui.api import (HTML_CONTENT_TYPE, Chats, ImageStore, Region, StoredImage,
                              Utterance)
+from cltl.chatui.display import DisplayLog
 from cltl.chatui.status import StatusLog
 from cltl_service.chatui.schema import create_image_signal
 
@@ -32,6 +33,7 @@ _SPEAKER_COOKIE = "cltl.chatui.chatid"
 DEFAULT_IMAGE_TYPES = ("image/png", "image/jpeg", "image/gif", "image/webp")
 DEFAULT_UPLOAD_TIMEOUT = 30
 DEFAULT_STATUS_HISTORY = 200
+DEFAULT_DISPLAY_HISTORY = 50
 
 
 class ChatUiService:
@@ -51,6 +53,10 @@ class ChatUiService:
         stop_phrase = config.get("stop_phrase") if "stop_phrase" in config else None
         status_history = (config.get_int("status_history") if "status_history" in config
                           and config.get("status_history") else DEFAULT_STATUS_HISTORY)
+        display_history = (config.get_int("display_history") if "display_history" in config
+                           and config.get("display_history") else DEFAULT_DISPLAY_HISTORY)
+        display_allowed_hosts = (config.get("display_allowed_hosts", multi=True)
+                                 if "display_allowed_hosts" in config else [])
 
         config = config_manager.get_config("cltl.chat-ui.events")
         utterance_topic = config.get("topic_utterance")
@@ -59,13 +65,16 @@ class ChatUiService:
         desire_topic = config.get("topic_desire") if "topic_desire" in config else None
         image_topic = config.get("topic_image") if "topic_image" in config else None
         status_topic = config.get("topic_status") if "topic_status" in config else None
+        display_topic = config.get("topic_display") if "topic_display" in config else None
 
         return cls(name, external_input, utterance_topic, response_topics, scenario_topic, desire_topic,
                    timeout, chats, event_bus, resource_manager,
                    image_store=image_store, image_topic=image_topic, image_types=image_types,
                    image_storage_url=image_storage_url, image_upload_timeout=image_upload_timeout,
                    monitoring_url=monitoring_url, stop_phrase=stop_phrase,
-                   status_topic=status_topic, status_history=status_history)
+                   status_topic=status_topic, status_history=status_history,
+                   display_topic=display_topic, display_history=display_history,
+                   display_allowed_hosts=display_allowed_hosts)
 
     @staticmethod
     def _image_storage_url(config, config_manager: ConfigurationManager) -> Optional[str]:
@@ -98,7 +107,9 @@ class ChatUiService:
                  image_storage_url: str = None,
                  image_upload_timeout: int = DEFAULT_UPLOAD_TIMEOUT,
                  monitoring_url: str = None, stop_phrase: str = None,
-                 status_topic: str = None, status_history: int = DEFAULT_STATUS_HISTORY):
+                 status_topic: str = None, status_history: int = DEFAULT_STATUS_HISTORY,
+                 display_topic: str = None, display_history: int = DEFAULT_DISPLAY_HISTORY,
+                 display_allowed_hosts: Iterable[str] = ()):
         self._name = name
         self._external_input = external_input
 
@@ -127,6 +138,13 @@ class ChatUiService:
         self._status_topic = (status_topic or "").strip() or None
         self._status = StatusLog(status_history)
 
+        # Where modules hand the person a page to look at. Empty means the
+        # deployment has no Display tab. Like status, only events of the active
+        # scenario count and the history goes with the scenario. Nothing is
+        # shown unless it is http(s) on localhost or `display_allowed_hosts`.
+        self._display_topic = (display_topic or "").strip() or None
+        self._display = DisplayLog(display_history, _split_hosts(display_allowed_hosts))
+
         self._response_topics = response_topics
         self._utterance_topic = utterance_topic
         self._desire_topic = desire_topic
@@ -143,6 +161,7 @@ class ChatUiService:
         self._app = None
         self._topic_worker = None
         self._status_worker = None
+        self._display_worker = None
 
         self._timeout = timeout * 60000 if timeout > 0 else 0
         self._use_cookie = timeout > 0
@@ -163,7 +182,19 @@ class ChatUiService:
                                               name=self.__class__.__name__ + "-status")
             self._status_worker.start().wait()
 
+        if self._display_topic:
+            self._display_worker = TopicWorker([self._display_topic], self._event_bus,
+                                               resource_manager=self._resource_manager,
+                                               processor=self._process_display, buffer_size=256,
+                                               name=self.__class__.__name__ + "-display")
+            self._display_worker.start().wait()
+
     def stop(self):
+        if self._display_worker:
+            self._display_worker.stop()
+            self._display_worker.await_stop()
+            self._display_worker = None
+
         if self._status_worker:
             self._status_worker.stop()
             self._status_worker.await_stop()
@@ -429,7 +460,8 @@ class ChatUiService:
             return jsonify({"image_upload": bool(self._image_store),
                             "monitoring_url": self._monitoring_url or None,
                             "stop_phrase": self._stop_phrase,
-                            "status_enabled": bool(self._status_topic)}), 200
+                            "status_enabled": bool(self._status_topic),
+                            "display_enabled": bool(self._display_topic)}), 200
 
         @self._app.route('/chat/status', methods=['GET'])
         def status():
@@ -447,6 +479,22 @@ class ChatUiService:
             return jsonify({"current": current.to_dict() if current else None,
                             "events": [entry.to_dict() for entry in self._status.since(from_sequence)],
                             "last_sequence": self._status.last_sequence,
+                            "scenario_id": self._scenario_id}), 200
+
+        @self._app.route('/chat/display', methods=['GET'])
+        def display():
+            """Every page shown in this scenario, oldest first, with no side effects.
+
+            The whole history rather than `?from=`: showing a url again moves
+            it, so a poller holding the old row could not tell. It is bounded by
+            `display_history`, and `last_sequence` is what tells the page
+            whether anything changed.
+            """
+            if not self._display_topic:
+                return jsonify({"error": "display is not enabled"}), 404
+
+            return jsonify({"entries": [entry.to_dict() for entry in self._display.entries],
+                            "last_sequence": self._display.last_sequence,
                             "scenario_id": self._scenario_id}), 200
 
         @self._app.route('/chat/scenario', methods=['GET'])
@@ -634,6 +682,23 @@ class ChatUiService:
         if payload.persistent:
             self._append_status_line(payload)
 
+    def _process_display(self, event: Event) -> None:
+        if not self._scenario_id or event.metadata.scenario_id != self._scenario_id:
+            logger.debug("Dropped display of scenario %s, active is %s",
+                         event.metadata.scenario_id, self._scenario_id)
+            return
+
+        # Not an isinstance check: the kombu bus delivers a SimpleNamespace, so
+        # the fields are read as they come and checked again here.
+        url = getattr(event.payload, "url", None)
+        name = getattr(event.payload, "name", None)
+        if not (isinstance(url, str) and url.strip() and isinstance(name, str) and name.strip()):
+            logger.warning("Dropped display event with payload %s", type(event.payload))
+            return
+
+        if not self._display.add(url, name):
+            logger.warning("Dropped display of %s: not an http(s) url on an allowed host", url)
+
     def _append_status_line(self, status: StatusEvent) -> None:
         """Leave a status in the transcript, where it stays.
 
@@ -666,6 +731,7 @@ class ChatUiService:
             self._speaker = None
             self._chats.stop_chat()
             self._status.clear()
+            self._display.clear()
             if self._image_store:
                 # The transcript they belong to is gone, and nothing else in the
                 # process is holding these megabytes for a reason.
@@ -673,6 +739,14 @@ class ChatUiService:
 
         logger.info("Updated Chat UI for scenario %s with agent %s, speaker %s",
                     self._scenario_id, self._agent, self._speaker)
+
+
+def _split_hosts(hosts) -> list:
+    """Hosts from config, which may be one comma-separated value or several."""
+    if isinstance(hosts, str):
+        hosts = [hosts]
+
+    return [host for value in hosts for host in value.split(",")]
 
 
 def _mime_type(content_type: str) -> str:

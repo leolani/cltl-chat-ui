@@ -16,6 +16,7 @@
     <link rel="stylesheet" media="all" href="annotate.css" />
     <link rel="stylesheet" media="all" href="panels.css" />
     <link rel="stylesheet" media="all" href="status.css" />
+    <link rel="stylesheet" media="all" href="display.css" />
   </head>
   <body>
     <div id="workspace">
@@ -55,6 +56,13 @@
                   aria-controls="annotator" aria-selected="true">Image</button>
           <button id="tab-monitor" type="button" role="tab"
                   aria-controls="monitor" aria-selected="false">Monitoring</button>
+          <!-- Left out unless the deployment configures a display topic.
+               display.js renames it after the latest page shown. -->
+          <button id="tab-display" type="button" role="tab"
+                  aria-controls="display" aria-selected="false" hidden>
+            <span id="display-tab-label">Display</span>
+            <span id="display-badge" hidden>new</span>
+          </button>
         </div>
 
         <section id="annotator" role="tabpanel" aria-labelledby="tab-annotator">
@@ -86,6 +94,20 @@
           <iframe id="monitor-frame" title="Monitoring"></iframe>
           <p id="monitor-status"></p>
         </section>
+
+        <section id="display" role="tabpanel" aria-labelledby="tab-display" hidden>
+          <!-- Pages other modules asked to have shown. Every url is checked by
+               the service before it gets here, and set by display.js; nothing
+               is written into this frame as markup. -->
+          <div id="display-controls">
+            <strong id="display-title">Display</strong>
+            <label for="display-history" class="cltl-visually-hidden">Pages shown so far</label>
+            <select id="display-history" disabled></select>
+            <a id="display-open" href="about:blank" target="_blank" rel="noopener noreferrer" hidden>Open in new tab</a>
+          </div>
+          <iframe id="display-frame" title="Display" referrerpolicy="no-referrer"></iframe>
+          <p id="display-status">Nothing to show yet.</p>
+        </section>
       </aside>
     </div>
 
@@ -99,5 +121,6 @@
     <script src="panels.js"></script>
     <script src="stop.js"></script>
     <script src="status.js"></script>
+    <script src="display.js"></script>
   </body>
 </html>

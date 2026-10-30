@@ -11,6 +11,7 @@ import zlib
 from queue import Empty, Queue
 from typing import Optional
 
+from cltl.combot.event.display import DisplayEvent
 from cltl.combot.event.status import StatusEvent
 from cltl.combot.event.emissor import (Agent, LeolaniContext, ScenarioStarted, ScenarioStopped,
                                        TextSignalEvent)
@@ -27,6 +28,7 @@ RESPONSE_TOPIC = "test.topic.text_out"
 SCENARIO_TOPIC = "test.topic.scenario"
 IMAGE_TOPIC = "test.topic.image"
 STATUS_TOPIC = "test.topic.status"
+DISPLAY_TOPIC = "test.topic.display"
 
 AGENT_NAME = "Leolani"
 SPEAKER_NAME = "Human"
@@ -65,6 +67,14 @@ def publish_status(event_bus, scenario_id: Optional[str], message: str = "workin
     event = (Event.for_scenario_payload(scenario_id, payload) if scenario_id
              else Event.for_payload(payload))
     event_bus.publish(STATUS_TOPIC, event)
+
+
+def publish_display(event_bus, scenario_id: Optional[str], url: str, name: str = "a page",
+                    payload=None) -> None:
+    payload = payload or DisplayEvent(url, name)
+    event = (Event.for_scenario_payload(scenario_id, payload) if scenario_id
+             else Event.for_payload(payload))
+    event_bus.publish(DISPLAY_TOPIC, event)
 
 
 def agent_response(scenario_id: str, text: str) -> TextSignalEvent:
@@ -182,6 +192,14 @@ class ServiceHarness:
         """Block until `count` rows have reached the timeline (the worker is asynchronous)."""
         return _await(lambda: (lambda s: s if len(s["events"]) >= count else None)(self.status()),
                       timeout, f"fewer than {count} status row(s)")
+
+    def display(self) -> dict:
+        return self.client.get("/chat/display").get_json()
+
+    def await_display(self, count: int, timeout: float = 5.0) -> dict:
+        """Block until the history holds `count` page(s) (the worker is asynchronous)."""
+        return _await(lambda: (lambda d: d if len(d["entries"]) >= count else None)(self.display()),
+                      timeout, f"fewer than {count} displayed page(s)")
 
     def await_utterances(self, chat_id: str, count: int, timeout: float = 5.0):
         def enough():

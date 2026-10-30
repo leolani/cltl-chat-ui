@@ -129,6 +129,7 @@ class ChatUITest(unittest.TestCase):
                      "static/annotate.js", "static/annotate.css",
                      "static/panels.js", "static/panels.css", "static/stop.js",
                      "static/status.js", "static/status.css",
+                     "static/display.js", "static/display.css",
                      "static/annotorious/annotorious.js", "static/annotorious/annotorious.css",
                      "static/chat-bubble/component/Bubbles.js",
                      "static/chat-bubble/component/styles/setup.css"):
@@ -178,6 +179,10 @@ class ConfigTest(unittest.TestCase):
                 harness = self.start(stop_phrase=stop_phrase)
 
                 self.assertIsNone(harness.client.get("/config").get_json()["stop_phrase"])
+
+    def test_it_reports_whether_display_is_enabled(self):
+        self.assertTrue(self.start(display_topic="t").client.get("/config").get_json()["display_enabled"])
+        self.assertFalse(self.start().client.get("/config").get_json()["display_enabled"])
 
     def test_it_reports_whether_upload_is_enabled(self):
         self.assertTrue(self.start(image_store=MemoryImageStore())
